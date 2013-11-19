@@ -16,5 +16,5 @@ Country flag images are fetched from [geognos api](http://www.geognos.com).
 - data pillars based on geo coordinates (lat/long,country)
 - connections based on geo coordinates (lat/long,country)
 
-![screenshot](https://raw.github.com/sebkl/globejs/master/screenshot/sample_openflights.png)
-![screenshot](https://raw.github.com/sebkl/globejs/master/screenshot/sample.png)    
+![screenshot](https://raw.github.com/sebkl/globejs/master/screenshots/sample_openflights.png)
+![screenshot](https://raw.github.com/sebkl/globejs/master/screenshots/sample.png)    
