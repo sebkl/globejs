@@ -1,0 +1,2 @@
+* FIX: Daylight effect .. use three.js lightning instead.
+* FIX: texture line at Long 0 is because of atlas.

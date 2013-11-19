@@ -747,7 +747,10 @@ GLOBE.TYPES.Globe = function (cid) {
 			uniforms: shader.uniforms,
 			vertexShader: shader.vertexShader,
 			fragmentShader: shader.fragmentShader,
-			side: THREE.BackSide
+			side: THREE.BackSide,
+		    	transparent: true,
+		    	opacity: 1.0
+
 		} );
 
 		atmosphere = new THREE.Mesh(
@@ -807,25 +810,46 @@ GLOBE.TYPES.Globe = function (cid) {
 		return createLine(x,y,dx,dy,intensity);
 	}
 
+	function addPolarConnections(data,i) {
+		return createLines(data,i);
+	}
+
 	function createLine(geo_x,geo_y,geo_dx,geo_dy, intensity) {
-		var inte = intensity || 1.0;
-		var from = new THREE.Vector3(degree_to_radius_longitude(geo_x),degree_to_radius_latitude(geo_y),RADIUS);
-		var to = new THREE.Vector3(degree_to_radius_longitude(geo_dx),degree_to_radius_latitude(geo_dy),RADIUS);
+		return createLines([[geo_x,geo_y,geo_dx,geo_dy]],intensity);
+	}
 
-		var lp = LINE_POINTS -1;
-
+	function createLines(data,intensity) {
 		var lineGeometry = new THREE.Geometry();
-		for (var i = 0; i <= lp; i++) {
-			var age = i/lp;
-			var v = new THREE.Vector3(0,0,0);
-			v.x = from.x*(1.0-age) + to.x * age;
-			v.y = from.y*(1.0-age) + to.y * age;
-			v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
-			var t = convert_from_polar(v);
-			console.log("(" + t.x +"," + t.y + "," + t.z + ")");
-			lineGeometry.vertices.push(t);
-		}
+		var inte = intensity || 1.0;
+		var idx;
+		for (idx = 0; idx < data.length; idx++) {
+			var l = data[idx]
+			var geo_x = l[0];
+			var geo_y = l[1];
+			var geo_dx = l[2];
+			var geo_dy = l[3];
 
+			var from = new THREE.Vector3(degree_to_radius_longitude(geo_x),degree_to_radius_latitude(geo_y),RADIUS);
+			var to = new THREE.Vector3(degree_to_radius_longitude(geo_dx),degree_to_radius_latitude(geo_dy),RADIUS);
+
+			var lp = LINE_POINTS -1;
+
+			try {
+				for (var i = 0; i <= lp; i++) {
+						var age = i/lp;
+						var v = new THREE.Vector3(0,0,0);
+						v.x = from.x*(1.0-age) + to.x * age;
+						v.y = from.y*(1.0-age) + to.y * age;
+						v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
+						var t = convert_from_polar(v);
+						//console.log("(" + t.x +"," + t.y + "," + t.z + ")");
+						lineGeometry.vertices.push(t);
+				}
+			} catch (e) {
+				console.log(" Adding line failed: " + e);
+			}
+		}
+		console.log("Added : " + idx)
 
 		var lineMaterial = new THREE.LineBasicMaterial( { 
 				color: 		LINE_COLOR, 
@@ -1433,6 +1457,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	obj.getContainerId = getContainerId;
 	obj.connectCountry = connectCountry;
 	obj.connectPolar = connectPolar;
+	obj.addPolarConnections = addPolarConnections;
 	obj.clearConnections = clearConnections;
 	obj.removeConnection = removeConnection;
 	obj.lightOut = lightOut;

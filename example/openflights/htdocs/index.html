@@ -1,0 +1,31 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <title>github.com/sebkl/globejs</title>
+    <script type="text/javascript" src="third-party/three.min.js"></script>
+    <script type="text/javascript" src="third-party/Tween.js"></script>
+    <script type="text/javascript" src="../gotojs/engine.js"></script>
+    <script type="text/javascript" src="globe.js"></script>
+    <script type="text/javascript">
+var globe;
+var gui;
+$(document).ready(function() {
+	globe = GLOBE.TYPES.Globe('#container');
+	globe.start();
+
+	GOTOJS.Openflights.AirportsGeo(function(d) {
+		globe.addDataPillars(d)
+	});
+	GOTOJS.Openflights.RoutesGeo(function(d) {
+		globe.addPolarConnections(d,0.05);
+	})
+});
+    </script>
+    <style>
+html,body,div#container {width:100%;height:100%;margin:0px;background-color:#000000}
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+  </body>
+</html>
