@@ -58,11 +58,12 @@ func (o *Openflights) RoutesGeo() [][]float64 {
 
 func main() {
 	of := Openflights{db: NewDatabase()}
-	server := NewFrontend(F_DEFAULT, map[int]string{
+	server := NewFrontend(Parameters{
 		P_PUBLICDIR: "htdocs",
 		P_PUBLICCONTEXT: "p",
 		P_EXTERNALURL: "http://localhost:8080/gotojs"})
 	server.ExposeInterface(&of)
+	server.EnableFileServer("htdocs","p")
 	server.Redirect("/","/p/")
 	log.Fatal(server.Start(":8080"))
 }
