@@ -230,7 +230,6 @@ GLOBE.TYPES.Globe = function (cid) {
 						  'vec3 atmosphere = vec3( 0.5, 0.5, 1.0 ) * pow( intensity, 3.0 );',
 						  'vec3 diffuse = texture2D( texture, vUv1 ).xyz;',
 
-
 						  'float col_int = color_intensity * (day_factor);',
 						  'if (col_int < 1.0) {;',
 						  	'float ci = (1.0 - col_int);',
@@ -732,13 +731,16 @@ GLOBE.TYPES.Globe = function (cid) {
 		return sphereGeometryLowRes;
 	}
 
-
-	/** Create the earth sphere object. 
-	 */
+	/** Create the earth sphere object.  */
 	function buildSphere() {
 		var shader = shaders['earth'];
 
 		var texture = THREE.ImageUtils.loadTexture(atlas_url);
+
+		//texture.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
+		//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		//texture.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+
 		shader.uniforms['texture'].value = texture;
 
 		var sphereMaterial = new THREE.ShaderMaterial ( {
@@ -756,6 +758,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		console.log("GLOBE sphere initialized.");
 	}
 
+	/** Create the earth atmosphere object. */
 	function buildAtmosphere() {
 		var shader = shaders['atmosphere'];
 		var atmosphereMaterial = new THREE.ShaderMaterial ( {

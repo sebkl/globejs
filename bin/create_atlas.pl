@@ -84,10 +84,10 @@ for (my $i = 0; $i < @config; $i++) {
 	my $fheight = (($i) * $height);
 	my $sconfig = $config[$i];
 
-	my $y = 1;
+	my $y = 0;
 	for (my $ty = $fheight; $ty <= $theight;$ty++) {
 		print STDERR "DONE: ".int(($y/$height)*100)."%\r";
-		for (my $x = 1; $x <= $width;$x++) {
+		for (my $x = 0; $x < $width;$x++) {
 			my %pixel;
 			foreach my $ci (keys(%{$sconfig})) {
 				my $imgString = $sconfig->{$ci};

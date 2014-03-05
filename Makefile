@@ -29,6 +29,7 @@ $(DISTDIR)/img: $(DISTDIR)
 $(DISTDIR)/img/flags: $(DISTDIR)/img
 	mkdir -p $@
 
+atlas: img/atlas.png
 
 img/atlas.png:
 	bin/create_atlas.pl $@ 
