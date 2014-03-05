@@ -38,7 +38,7 @@ $(DISTDIR)/img/atlas.png: $(DISTDIR)/img img/atlas.png
 
 $(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png
 	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
-	rm $(DISTDIR)/lookup.js
+	#rm $(DISTDIR)/lookup.js
 
 test: EXAMPLE
 	cd $(DISTDIR)/examples/openflights && go run server.go

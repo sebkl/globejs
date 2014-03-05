@@ -31,9 +31,23 @@ GLOBE.TYPES.Globe = function (cid) {
 	var LINE_HFAC = 0.2; /* Percentage of RADIUS the line curve will be heigh. */
 	var LINE_COLOR  = 0x8888ff;
 	var MIN_PILLAR_SIZE = 0.2;
+	var lightMode = {
+		"MOUSE": 0,
+		"DEFAULT": 1,
+		"TIME": 2,
+		"DAY": 2,
+		"current": 0
+	};
 
 	/* time */
 	var time = new Date();
+
+	/* (x,y,z):
+	 *  x => -1 .. 1 (left to right)
+	 *  y => -1 .. 1 (bottom to top)
+	 *  z => -1 .. 1 (back to front) */
+	var defaultLight = new THREE.Vector3(-0.5,0.0,1.0); // front bottom (slight left)
+	var defaultLightIntensity = new THREE.Vector3(1.0,1.0,1.0);
 
 	/* texture URLs */
 	var atlas_url = 'img/atlas.png';
@@ -144,14 +158,15 @@ GLOBE.TYPES.Globe = function (cid) {
 					type: "f",
 					value: 1.0
 				},
-				"dayofyear" :{
-					type: "f",
-					value: 180.0
+				"lightvector" : {
+					type: "v3",
+					value:  defaultLight
 				},
-				"hourofday" :{
-					type: "f",
-					value: 12.0
+				"lightintensity": {
+					type: "v3",
+					value: defaultLightIntensity
 				}
+
       			},
       			vertexShader: [
 				'varying vec3 vNormal;',
@@ -165,7 +180,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				  'vUv = uv;',
 				'}'
       			].join('\n'),
-      			fragmentShader: [                                                                                                                                       
+      			fragmentShader: [
 				'uniform sampler2D texture;',
 				'uniform float brightness;',
 				'uniform float color_intensity;',
@@ -175,31 +190,11 @@ GLOBE.TYPES.Globe = function (cid) {
 				'uniform float cintensity;',
 				'uniform float calpha;',
 				'uniform vec4 selection;',
-				'uniform float dayofyear;',
-				'uniform float hourofday;',
 				'uniform float bintensity;',
+				'uniform vec3 lightvector;',
+				'uniform vec3 lightintensity;',
 				'varying vec3 vNormal;',
 				'varying vec2 vUv;',
-				'float daylight(float la, float doty,float hotd) {',
-					'float l = (la * 180.0) - 90.0;',
-					'float pi = 3.141592654;',
-					'float p = asin(0.39795*cos(0.2163108 + 2.0*atan(0.9671396*tan(0.00860 * (doty - 186.0)))));',
-					'float c = (sin(0.8333*pi/180.0) + sin(l*pi/180.0)*sin(p));',
-					'float d = (cos(l*pi/180.0)*cos(p));',
-					'float t = c/d;',
-					't = (t > 1.0 ? 1.0 : t);',
-					't = (t < -1.0 ? -1.0 : t);',
-					'float ret = 0.0;',
-					'float dld = (24.0 - (24.0 / pi)*acos( t))/2.0;',
-					'if (hotd < (12.0 + dld) && hotd > (12.0 - dld)) {',
-						'float n = (1.0-(abs(hotd - (12.0)) / (dld))) *10.0;',
-						'ret = (n > 1.0 ? 1.0 : n);',
-					'} else {',
-						'ret = 0.0;',
-					'}',
-					'return ret;',
-
-				'}',
 				'void main() {',
 						  'vec2 pos = vec2(mousex, ((1.0-mousey)/2.0));',
 						  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
@@ -218,20 +213,24 @@ GLOBE.TYPES.Globe = function (cid) {
 							'}',
 						  '}',
  
-						  'float day_factor = 1.0;',
 						  'vec3 city_additive = vec3(0.0,0.0,0.0);',
-						  'float swimfac = 0.035;',
-						  'float swimd = (swimfac * 1.0);',
-						  'if (dayofyear > 0.0) {',
-						  	'float city_val = texture2D(texture,vUv2).z;',
-							  'float hofd = (vUv.x*24.0)+hourofday;',
-							  'day_factor = daylight(1.0- vUv.y,dayofyear,hofd > 24.0 ? hofd - 24.0 : hofd);',
-							  'city_additive = vec3(city_val,city_val,city_val * 0.5) * (1.0 - day_factor);',
-						  '}',
+					          'float day_factor = 1.0;',
+
+						  'if (lightintensity.x >= 0.0 && lightintensity.y >= 0.0 && lightintensity.z >= 0.0) {',
+							  'vec3 lightv= normalize(lightvector);',
+					          	  'day_factor = max(0.0,dot(vNormal, lightv));',
+							  'if (day_factor < 5.0) {',
+								'float city_val = texture2D(texture,vUv2).z;',
+								'city_additive = vec3(city_val,city_val,city_val * 0.5) * (2.0 - (day_factor * 2.0));',
+							  '}',
+					          '}',
+
 						  'vec3 border_additive = vec3(1.0,1.0,1.0) * (texture2D(texture,vUv2).y) * bintensity;',
 						  'float intensity = 1.05 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) );',
 						  'vec3 atmosphere = vec3( 0.5, 0.5, 1.0 ) * pow( intensity, 3.0 );',
 						  'vec3 diffuse = texture2D( texture, vUv1 ).xyz;',
+
+
 						  'float col_int = color_intensity * (day_factor);',
 						  'if (col_int < 1.0) {;',
 						  	'float ci = (1.0 - col_int);',
@@ -241,12 +240,21 @@ GLOBE.TYPES.Globe = function (cid) {
 							'float za = (diffuse.z - avgcv)*ci;',
 							'diffuse = vec3(diffuse.x - xa,diffuse.y - ya, diffuse.z - za);',
 						  '}',
-						  'gl_FragColor = vec4( (diffuse * brightness * ((day_factor * 0.9) + 0.1)) + atmosphere + border_additive + (ccol.xyz * ccol.w) + city_additive, 1.0 );',
+						  'gl_FragColor = vec4( (diffuse * brightness * (day_factor)) + (atmosphere * day_factor) + border_additive + (ccol.xyz * ccol.w) + city_additive, 1.0 );',
 				'}'
 			].join('\n')
     		},
     		'atmosphere' : {
-      			uniforms: {},
+      			uniforms: {
+				"lightvector" : {
+					type: "v3",
+					value:  defaultLight
+				},
+				"lightintensity": {
+					type: "v3",
+					value: defaultLightIntensity
+				}
+			},
       			vertexShader: [
 				'varying vec3 vNormal;',
 				'void main() {',
@@ -256,9 +264,16 @@ GLOBE.TYPES.Globe = function (cid) {
 			].join('\n'),
       			fragmentShader: [
 				'varying vec3 vNormal;',
+				'uniform vec3 lightvector;',
+				'uniform vec3 lightintensity;',
 				'void main() {',
+				  'vec3  lightv= normalize(lightvector);',
+				  'float day_factor = dot(vNormal, lightv)+0.5;',
 				  'float intensity = pow( 0.8 - dot( vNormal, vec3( 0, 0, 1.0 ) ), 12.0 );',
-				  'gl_FragColor = vec4( 0.5, 0.5, 1.0, 1.0 ) * intensity;',
+				  'if (lightintensity.x < 0.0 || lightintensity.y < 0.0 || lightintensity.z < 0.0) {',
+					  'day_factor = 1.0;',
+				  '}',
+				  'gl_FragColor = vec4( (day_factor * 1.0)  * vec3(0.5, 0.5, 1.0), 1.0 ) * intensity;',
 				'}'
 			].join('\n')
     		},
@@ -1011,11 +1026,14 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function disableDaylight() {
-		setTime(null);
+		var disable = new THREE.Vector3(-1.0,-1.0,-1.0);
+		shaders['earth'].uniforms.lightintensity.value = disable;
+		shaders['atmosphere'].uniforms.lightintensity.value = disable;
 	}
 
 	function enableDaylight() {
-		updateTime();
+		shaders['earth'].uniforms.lightintensity.value = defaultLightIntensity;
+		shaders['atmosphere'].uniforms.lightintensity.value = defaultLightIntensity;
 	}
 
 	function updateTime() {
@@ -1036,13 +1054,15 @@ GLOBE.TYPES.Globe = function (cid) {
 				doy = 356.0 + doy;
 			}
 
-			shaders['earth'].uniforms.hourofday.value = h;
-			shaders['earth'].uniforms.dayofyear.value = doy + 1.0;
+			//shaders['earth'].uniforms.hourofday.value = h;
+			//shaders['earth'].uniforms.dayofyear.value = doy + 1.0;
 			shaders['earth'].uniforms.needsUpdate = true;
+			//TODO: Set light vector based on time
 		} else {
-			shaders['earth'].uniforms.hourofday.value = 0.0;
-			shaders['earth'].uniforms.dayofyear.value = 0.0;
+			//shaders['earth'].uniforms.hourofday.value = 0.0;
+			//shaders['earth'].uniforms.dayofyear.value = 0.0;
 			shaders['earth'].uniforms.needsUpdate = true;
+			//TODO: Set light vector based on time
 		}
 	};
 
@@ -1318,6 +1338,14 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function onMouseBrowse(event) {
 		if (overRenderer) {
+			if (lightMode.current == lightMode.MOUSE) {
+				/* Set light vector based on mouse position. Mouse emits light. */
+				var lightv = new THREE.Vector3( (event.clientX * 2.0/window.innerWidth)-1.0, (event.clientY *-2.0 /window.innerHeight) +1.0,1.0);
+				shaders['earth'].uniforms.lightvector.value = lightv;
+				shaders['atmosphere'].uniforms.lightvector.value = lightv;
+			}
+
+			/* Set polar coordinates of mouse pointer. */
 			var intersects = getIntersects(event);
 			if (intersects.length == 1) {
 				overGlobe = true;
