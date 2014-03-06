@@ -22,7 +22,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	 */
 	var PI_HALF = Math.PI / 2;
 	var RADIUS = 200;
-	var ATMOSPHERE_SIZE_FACTOR = 1.1;
+	var ATMOSPHERE_SIZE_FACTOR = 1.11;
   	var ZOOM_SPEED = 50;
 	var ZOOM_CLICK_STEP = ZOOM_SPEED*2;
 	var PILLAR_FULLSIZE = 100;
@@ -51,6 +51,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	/* texture URLs */
 	var atlas_url = 'img/atlas.png';
+	var cmap_url = 'img/cmap.png';
 
 	/* Camera moving : */
 	var curZoomSpeed = 0;
@@ -107,14 +108,15 @@ GLOBE.TYPES.Globe = function (cid) {
 	var lines = []; /* Lines for country/polar connections */
 
 	var countryDataColors = [];
-
-	
 	var enabled = true;
-
-	var shaders = {                                                                                                                                             
+	var shaders = {
     		'earth' : {
       			uniforms: {
         			'texture': { 
+					type: 't', 
+					value: undefined
+			       	},
+        			'countrymap': { 
 					type: 't', 
 					value: undefined
 			       	},
@@ -182,6 +184,7 @@ GLOBE.TYPES.Globe = function (cid) {
       			].join('\n'),
       			fragmentShader: [
 				'uniform sampler2D texture;',
+				'uniform sampler2D countrymap;',
 				'uniform float brightness;',
 				'uniform float color_intensity;',
 				'uniform float mousex;',
@@ -196,15 +199,15 @@ GLOBE.TYPES.Globe = function (cid) {
 				'varying vec3 vNormal;',
 				'varying vec2 vUv;',
 				'void main() {',
-						  'vec2 pos = vec2(mousex, ((1.0-mousey)/2.0));',
+						  'vec2 pos = vec2(mousex, (1.0-mousey));',
 						  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
 						  'vec2 vUv2 = vec2(vUv.x,(vUv.y/2.0));',
 						  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
-						  'if (texture2D(texture,pos).x > 0.0 && texture2D(texture,pos).x == texture2D(texture,vUv2).x) {',
+						  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
 							'ccol = vec4(selection.xyz,calpha*selection.w);',
 						  '} else {',
 							'float par = 256.0;',
-							'int cidx = int(texture2D(texture,vUv2).x * par);',
+							'int cidx = int(texture2D(countrymap,vUv).x * par);',
 							'float cc = float(cidx) / par;',
 							'if (cc > 0.0) {',
 								'vec2 datapos = vec2(cc,0.0);',
@@ -272,7 +275,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				  'if (lightintensity.x < 0.0 || lightintensity.y < 0.0 || lightintensity.z < 0.0) {',
 					  'day_factor = 1.0;',
 				  '}',
-				  'gl_FragColor = vec4( (day_factor * 1.0)  * vec3(0.5, 0.5, 1.0), 1.0 ) * intensity;',
+				  'gl_FragColor = vec4( (day_factor * 1.5)  * vec3(0.5, 0.5, 1.0), 1.0 ) * intensity;',
 				'}'
 			].join('\n')
     		},
@@ -736,12 +739,14 @@ GLOBE.TYPES.Globe = function (cid) {
 		var shader = shaders['earth'];
 
 		var texture = THREE.ImageUtils.loadTexture(atlas_url);
+		var countrymap = THREE.ImageUtils.loadTexture(cmap_url);
 
-		//texture.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
 		//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-		//texture.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		countrymap.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
+		countrymap.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
 
 		shader.uniforms['texture'].value = texture;
+		shader.uniforms['countrymap'].value = countrymap;
 
 		var sphereMaterial = new THREE.ShaderMaterial ( {
 			uniforms: shader.uniforms,

@@ -32,12 +32,15 @@ $(DISTDIR)/img/flags: $(DISTDIR)/img
 atlas: img/atlas.png
 
 img/atlas.png:
-	bin/create_atlas.pl $@ 
+	bin/create_atlas.pl $@ img/cmap.png
 
 $(DISTDIR)/img/atlas.png: $(DISTDIR)/img img/atlas.png
 	cp img/atlas.png $@
 
-$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png
+$(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
+	cp img/map.png $@
+
+$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js
 	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
 	#rm $(DISTDIR)/lookup.js
 
