@@ -40,7 +40,7 @@ $(DISTDIR)/img/atlas.png: $(DISTDIR)/img img/atlas.png
 $(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
 	cp img/map.png $@
 
-$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js
+$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js namespace.js
 	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
 	#rm $(DISTDIR)/lookup.js
 

@@ -1186,25 +1186,36 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function init() {
-		scene = new THREE.Scene();
-		atmosphereScene = new THREE.Scene();
-		projector = new THREE.Projector();
-		//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
-		//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
-		camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
-		renderer = new THREE.WebGLRenderer();
-		renderer.setSize( window.innerWidth, window.innerHeight );                                                                                                
-    		//renderer.setClearColorHex(0x000000, 0.0);
-    		renderer.setClearColor(0x000000, 0.0);
-		renderer.autoClear = false;
+		try {
+			scene = new THREE.Scene();
+			atmosphereScene = new THREE.Scene();
+			projector = new THREE.Projector();
+			//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
+			//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+			camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+			renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );                                                                                                
+			//renderer.setClearColorHex(0x000000, 0.0);
+			renderer.setClearColor(0x000000, 0.0);
+			renderer.autoClear = false;
 
-		scene.add(camera);
-		camera.position.z = distance;
+			scene.add(camera);
+			camera.position.z = distance;
 
-		//registerEventListener()
+			//registerEventListener()
 
-		$(containerId).append($(renderer.domElement));
-		console.log("GLOBE initialized.");
+			$(containerId).append($(renderer.domElement));
+			console.log("GLOBE initialized.");
+		} catch (e) {
+			try {
+				GLOBE.HELPER.assertSupportedBrowsers();
+				GLOBE.SCREENS.renderWebGLNotSupported();
+			} catch (e) {
+				GLOBE.SCREENS.renderUnsupportedBrowser();
+				throw e;
+			}
+			throw e;
+		}
 	}
 
 	function render() {
