@@ -1,0 +1,6 @@
+{
+	"APIKey":"yourApiSecret",
+	"APISecret":"yourApiSecret",
+	"AccessToken":"yourAccessToken",
+	"AccessSecret":"yourAccessSecret"
+}
