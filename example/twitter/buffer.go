@@ -100,7 +100,6 @@ func NewFetcher(filename string) (ret *Fetcher,err error) {
 	//log.Printf("Using %s %s %s %s",ret.config.APIKey,ret.config.APISecret,ret.config.AccessToken,ret.config.AccessSecret)
 
 	go func() {
-		log.Printf("Starting Backlog process.")
 		ret.BacklogRunner()
 	}()
 
@@ -220,11 +219,8 @@ func (f *Fetcher) Fetch(fr *FetchRequest) (ret []Message) {
 }
 
 func (f* Fetcher) BacklogRunner() {
+	log.Printf("Started BacklogRunner.")
 	for c:=0;;c++ {
-		if c == 1000 {
-			log.Printf(".")
-			c = 0
-		}
 		<-f.notify
 		for e := f.backlog.Front(); e != nil; e = e.Next() {
 			fr, ok := e.Value.(*FetchRequest)
@@ -236,7 +232,6 @@ func (f* Fetcher) BacklogRunner() {
 			} else {
 				log.Printf("Backlog contains invalid element type.")
 				f.backlog.Remove(e)
-
 			}
 		}
 	}

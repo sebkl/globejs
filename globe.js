@@ -78,7 +78,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	var atmosphere;
 
 	/* Attributes */
-	obj.particleSize = 2;
+	obj.particleSize = 5;
 	obj.particleLifetime = 200;
 	obj.particleColor = [128,255,128 ];
 	obj.particleIntensity = 1.0;
@@ -352,6 +352,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				 * WebGL: INVALID_OPERATION: drawArrays: attribs not setup correctly
 				 *
 				 * */
+				'uniform sampler2D texture;',
 				'uniform float now;',
 				'uniform float hitstart;',
 				'uniform float hitend;',
@@ -398,12 +399,13 @@ GLOBE.TYPES.Globe = function (cid) {
 				'uniform sampler2D texture;',
 				'uniform vec4 color;',
 				'varying float age;',
-				'varying vec3 vNormal;',
-				'varying vec2 vUv;',
 				'void main() {',
 					'float dage = age * 2.0;',
 					'if (dage > 1.0) { dage = 2.0 - dage; }',
-					'gl_FragColor = vec4(color.x,color.y,color.z,color.w - (dage*0.5));',
+					//'float d = texture2D( texture, gl_PointCoord ).a;',
+					'float d = texture2D( texture, gl_PointCoord ).r;',
+					//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
+					'gl_FragColor = vec4(dage * d * color.xyz,d * color.w);',
 				
 				'}'
 			].join('\n')
@@ -1211,6 +1213,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			//renderer.setClearColorHex(0x000000, 0.0);
 			renderer.setClearColor(0x000000, 0.0);
 			renderer.autoClear = false;
+			renderer.setBlending(THREE.AdditiveBlending);
 
 			scene.add(camera);
 			camera.position.z = distance;
@@ -1243,8 +1246,8 @@ GLOBE.TYPES.Globe = function (cid) {
 		camera.lookAt(scene.position);
 		camera.updateProjectionMatrix();
 		renderer.clear();
-	    	renderer.render(scene, camera);
 		renderer.render(atmosphereScene, camera);
+	    	renderer.render(scene, camera);
 	}
 
 	function animate() {
@@ -1254,10 +1257,17 @@ GLOBE.TYPES.Globe = function (cid) {
 			tic+=1;
 			shaders['particle'].uniforms.now.value = tic;
 
+			// Wait 50 frames before sending initialized event.
+			if (tic == 50) {
+				$(document).trigger('globe:initialized',[]);
+			}
+
 			render();
 		}
 	}
 
+	/* Zoom/Scale globe and atmosphere within given boundaries. 
+	 * This is called for every frame render. */
 	function zoom(delta) {
 		distanceTarget -= delta;
 		var min = RADIUS * 1.1;
@@ -1485,6 +1495,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		mouseMoveHandler = f;
 	}
 
+	function setParticleSize(size) {
+		obj.particleSize = size;
+	}
+
 	/* Plug all together */
 	init();
 	buildParticles();
@@ -1525,6 +1539,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	obj.setTime = setTime;
 	obj.enableDaylight = enableDaylight;
 	obj.disableDaylight = disableDaylight;
+	obj.setParticleSize = setParticleSize;
 
 	render();
 	updateTime();

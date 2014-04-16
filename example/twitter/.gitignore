@@ -1,4 +1,5 @@
 Makefile
 *.json
 .*.swp
+DIST
 
