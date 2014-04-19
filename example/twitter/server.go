@@ -64,11 +64,10 @@ func (t* Tweets) Reset(session *Session) {
 	delete(t.sessions,s.Id)
 }
 
-// lazyStart checks whther the fetcher is currently running. If yes it returns immediately.
+// lazyStart checks whether the fetcher is currently running. If yes it returns immediately.
 // If not it is started. This mechanism allows to stop twitter source stream if no scubscribers
 // or sessions are currently open.
 func (t* Tweets) lazyStart() {
-	log.Printf("LAZY")
 	if t.fetcher.running {
 		return
 	} else {

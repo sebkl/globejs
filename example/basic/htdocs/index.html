@@ -19,15 +19,22 @@ $(document).ready(function() {
 });
     </script>
     <script type="text/javascript">
-function test() {
-	globe.clearConnections();
+
+function testPillars() {
 	globe.clearPillars();
         for (var i = 0;i < 80;i++) {
                 globe.addDataPillar(0,i,i/80);
         }
+}
+
+function testConnections() {
+	globe.clearConnections();
 	for (var i = 0;i <80;i++) {
                 globe.connectPolar(-i*Math.random(),-i*Math.random(),i*Math.random(),i*Math.random(),i/80);
         }
+}
+
+function testParticles() {
         for (var x = -180 ; x <180; x+=5) {
                 for (var y = -90 ; y < 90; y+=5) {
                         globe.createMoveParticle(x,y,x + 5,y +5);
@@ -36,9 +43,13 @@ function test() {
 }
 
 $(document).ready(function() {
-	var tobj ={'testAll': test}
+	var tpobj ={'testPillars': testPillars}
+	var tcobj ={'testConnections': testConnections}
+	var tobj ={'testParticles': testParticles}
 	var t  = gui.addFolder('Testing');
-	t.add(tobj,'testAll');
+	t.add(tpobj,'testPillars');
+	t.add(tcobj,'testConnections');
+	t.add(tobj,'testParticles');
 });
     </script>
     <style>
