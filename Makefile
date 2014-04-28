@@ -48,7 +48,7 @@ test: EXAMPLE
 	cd $(DISTDIR)/examples/openflights && go run server.go
 
 edit: 
-	$(EDITOR) *.js Makefile example/openflights/server.go example/openflights/htdocs/index.html
+	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
 
 
 

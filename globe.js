@@ -1585,7 +1585,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	obj.setParticleSize = setParticleSize;
 	obj.setCountryLightning = setCountryLightning;
 	obj.getCountryLightning = getCountryLightning;
-	obj.shaders = shaders;
+	//obj.shaders = shaders; /* export for debuging purposes */
 
 	render();
 	updateTime();
