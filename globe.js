@@ -1405,10 +1405,17 @@ GLOBE.TYPES.Globe = function (cid) {
 	function updateHoverHandler(cc) {
 		if (cc != hovered_cc) {
 			hovered_cc = cc;
-			$(document).trigger('country:hover',hovered_cc);
+
 			if (cc == NO_COUNTRY) {
 				shaders['earth'].uniforms.mousex.value = 0;
 				shaders['earth'].uniforms.mousey.value = 0;
+				cc = null;
+			}
+
+			if (isNaN(cc) || cc == null) {
+				$(document).trigger('country:hover',cc);
+			} else {
+				console.warn("Please map country id: " + cc);
 			}
 		}
 	}

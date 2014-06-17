@@ -57,6 +57,9 @@ var GLOBE = GLOBE || {
 			var c = new THREE.Color();
 			c.setHSL( ( 0.6 - ( factor * 0.5 ) ), 1.0, 0.5 );
 			return c;
+		},
+		'flagUrl': function(iso) {
+			return "img/flags/" + iso + ".png";
 		}
 	},
 	'TYPES': { /* globe.js */ },
@@ -84,7 +87,6 @@ var GLOBE = GLOBE || {
 	},
 	'WIDGETS': {
 		'renderShareBar': function(sbid) {
-
 			for (var i in GLOBE.CONFIGURATION.shareButtons) {
 				var o =GLOBE.CONFIGURATION.shareButtons[i];
 				var item = $('<div>');
