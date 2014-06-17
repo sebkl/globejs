@@ -12,6 +12,10 @@ var globe;
 var gui;
 
 var lc = new THREE.Color(0x5f5fff);
+var tc = new Array(180*2);
+for (var i = 0; i < 180*2; i++) {
+	tc[i] = new Array(90*2);
+}
 
 function Next() {
 	var messages = GOTOJS.Tweets.Next();
@@ -23,8 +27,15 @@ function Next() {
 
 		if (tweet != null) {
 
-			var opco = GLOBE.GEO.lookup_country(tweet['long'],-(tweet['lat']));
-			globe.createSourceParticle((tweet['long']),-(tweet['lat']));
+			var lo = tweet['long'];
+			var la = -tweet['lat'];
+			var opco = GLOBE.GEO.lookup_country(lo,la);
+			globe.createSourceParticle(lo,la);
+
+			var x = parseInt(lo + 180);
+			var y = parseInt(la + 90);
+			tc[x][y] = tweet;
+
 			if (map[opco] === undefined) {
 				map[opco] = 0;
 			}
@@ -48,21 +59,52 @@ function Start() {
 
 $(document).bind("globe:initialized",Start);
 
+$(document).bind("country:hover", function(e,iso) {
+		var w = $('#flagwidget');
+		if (iso == null) {
+			w.hide();
+		} else {
+			w.find("p").html(GLOBE.GEO.lookup_countryname(iso))
+			w.css("background-image", "url(" + GLOBE.HELPER.flagUrl(iso)+ ")");
+			w.show();
+		}
+});
+
+$(document).bind('polar:hover', function (e,lo,la) {
+	var x = parseInt(lo +180);
+	var y = parseInt(la + 90);
+	var tweet = tc[x][y];
+	if (tweet !== undefined) {
+		$('#tweet').find('.sender').html(tweet.sender);
+		$('#tweet').find('.text').html(tweet.text);
+		$('#tweet').show();
+	} else {
+		$('#tweet').hide();
+	}
+});
+
+
 $(document).ready(function() {
 	globe = GLOBE.TYPES.Globe('#container');
 	globe.start();
 	GLOBE.WIDGETS.renderShareBar('#sharebar');
-
 });
 
     </script>
     <style>
 	    html,body,div#container {width:100%;height:100%;margin:0px;background-color:#000000}
 	    #sharebar { position:absolute; right: 10px; bottom:10px }
+	    #flagwidget { position:absolute; left: 50%; top: 25px; margin-left: -80px; width: 160px; height: 80px; opacity: 0.5; border: 1px solid #aaaaaa; background-repeat: no-repeat; display: none}
+	    #flagwidget p {position:relative; width: 300px; top: -30px; font-family: 'Michroma'; font-size: 9pt; color: #ffffff}
+	    #tweet { position:absolute; top: 10px; left: 10px; margin: 5px; border: 0px solid #eaff00; color: #ffffff; font-family: 'Michroma'; font-size: 9pt; max-width: 30%;}
+	    #tweet h1 { padding: 5px; font-size: 12pt; color: #4296ff; background-color: #333333; border:1px solid #555555;}
+	    #tweet p { margin: 10px, font-family: 'Courier';}
     </style>
   </head>
   <body>
     <div id="container"></div>
     <div id="sharebar"></div>
+    <div id="flagwidget"><p></p></div>
+    <div id="tweet"><h1 class="sender"></h1><p class="text"></p></div>
   </body>
 </html>
