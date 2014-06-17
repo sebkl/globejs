@@ -17,6 +17,17 @@ var GLOBE = GLOBE || {
 				'url': "https://www.apple.com/safari/",
 				'icon': "https://raw.github.com/alrra/browser-logos/master/safari/safari_128x128.png"
 			}
+		},
+		'shareButtons': {
+			'Facebook': {
+				url:'https://www.facebook.com/sharer/sharer.php?u=' + $(location).attr('href'),
+				icon: 'img/third-party/fbicon.png'
+
+			},
+			'Google': {
+				url: "https://plus.google.com/share?url="+ $(location).attr('href'),
+				icon: 'img/third-party/gpicon.png'
+			}
 		}
 	},
 	'HELPER': {
@@ -41,6 +52,11 @@ var GLOBE = GLOBE || {
 			if (found == 0) {
 				throw "Browser not supported.";
 			}
+		},
+		'factorToColor': function(factor) {
+			var c = new THREE.Color();
+			c.setHSL( ( 0.6 - ( factor * 0.5 ) ), 1.0, 0.5 );
+			return c;
 		}
 	},
 	'TYPES': { /* globe.js */ },
@@ -65,5 +81,27 @@ var GLOBE = GLOBE || {
 			console.log("WebGL is not enabled.");
 			this.renderScreen('WebGL rendering is not enabled.','<p>Please consult your browser manual and enable WebGL.</p>');
 		}
+	},
+	'WIDGETS': {
+		'renderShareBar': function(sbid) {
+
+			for (var i in GLOBE.CONFIGURATION.shareButtons) {
+				var o =GLOBE.CONFIGURATION.shareButtons[i];
+				var item = $('<div>');
+			
+				item.css('background-image',"url('" + o.icon +"')");
+				item.css('background-repeat','no-repeat');
+				item.css('background-position','left center');
+				item.css('width','24px');
+				item.css('height','24px');
+				item.css('float','left');
+				item.attr('href',o.url);
+				item.click(function() {
+					window.open($(this).attr('href'),'_blank');
+				});
+				item.appendTo(sbid);
+			}
+		}
 	}
 };
+

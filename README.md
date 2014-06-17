@@ -5,7 +5,7 @@ web-gl based globe application inspired by the web-gl globe of the google arts t
 
 
 ## Requirements
-Currently [google chrome](http://www.google.com/chrome), [forefox](http://www.mozilla.org/firefox/) as well
+Currently [google chrome](http://www.google.com/chrome), [firefox](http://www.mozilla.org/firefox/) as well
 as [safari](https://www.apple.com/safari/) browsers are supported.
 
 ## External content and references.

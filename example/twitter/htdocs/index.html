@@ -1,0 +1,68 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <title>github.com/sebkl/globejs</title>
+    <link href='http://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
+    <script type="text/javascript" src="third-party/three.min.js"></script>
+    <script type="text/javascript" src="third-party/Tween.js"></script>
+    <script type="text/javascript" src="../gotojs/engine.js"></script>
+    <script type="text/javascript" src="globe.js"></script>
+    <script type="text/javascript">
+var globe;
+var gui;
+
+var lc = new THREE.Color(0x5f5fff);
+
+function Next() {
+	var messages = GOTOJS.Tweets.Next();
+	var map ={};
+	var max = 0;
+	for (var i in messages) {
+		var message = messages[i];
+		var tweet = message.payload;
+
+		if (tweet != null) {
+
+			var opco = GLOBE.GEO.lookup_country(tweet['long'],-(tweet['lat']));
+			globe.createSourceParticle((tweet['long']),-(tweet['lat']));
+			if (map[opco] === undefined) {
+				map[opco] = 0;
+			}
+			map[opco]++;
+			if (map[opco] > max) {
+				max = map[opco];
+			}
+		}		
+	}
+	for (var opco in map) {
+		var val = map[opco]/max;
+		globe.setCountryLightning(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
+	}
+	setTimeout(Next,300);
+};
+
+function Start() {
+	console.log("Globe initialized, starting twitter stream");
+	Next();
+}
+
+$(document).bind("globe:initialized",Start);
+
+$(document).ready(function() {
+	globe = GLOBE.TYPES.Globe('#container');
+	globe.start();
+	GLOBE.WIDGETS.renderShareBar('#sharebar');
+
+});
+
+    </script>
+    <style>
+	    html,body,div#container {width:100%;height:100%;margin:0px;background-color:#000000}
+	    #sharebar { position:absolute; right: 10px; bottom:10px }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <div id="sharebar"></div>
+  </body>
+</html>

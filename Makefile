@@ -7,7 +7,7 @@ DIST: $(DISTDIR)/globe.js $(DISTDIR)/third-party
 
 EXAMPLE: DIST
 	mkdir -p $(DISTDIR)/examples
-	cp -r example/* $(DISTDIR)/examples/
+	for e in `ls -1 example/ | xargs`; do make -C example/$$e DIST; mkdir -p $(DISTDIR)/examples/$$e;  cp -r example/$$e/DIST/* $(DISTDIR)/examples/$$e/; done;
 	for e in `ls -1 example/ | xargs`; do cp -r $(DISTDIR)/img $(DISTDIR)/examples/$$e/htdocs/; done;
 	for e in `ls -1 example/ | xargs`; do cp -r $(DISTDIR)/third-party/* $(DISTDIR)/examples/$$e/htdocs/third-party/; done;
 	for e in `ls -1 example/ | xargs`; do cp -r $(DISTDIR)/globe.js $(DISTDIR)/examples/$$e/htdocs/; done;
@@ -48,9 +48,10 @@ test: EXAMPLE
 	cd $(DISTDIR)/examples/openflights && go run server.go
 
 edit: 
-	$(EDITOR) *.js Makefile example/openflights/server.go example/openflights/htdocs/index.html
+	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
 
 
 
 clean:
 	rm -rf $(DISTDIR)
+	for e in `ls -1 example/ | xargs`; do make -C example/$$e clean; done;

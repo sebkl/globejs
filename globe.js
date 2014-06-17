@@ -5,13 +5,15 @@ GLOBE.TYPES.Globe = function (cid) {
 	var obj = {};
 	var containerId = cid;
 	var container = $(cid).context.documentElement;
-	var width = $(containerId).width();
-	var height = $(containerId).height();
+	var width = $(containerId).width() -5 ;
+	var height = $(containerId).height() -5 ;
+	$("body").css("overflow", "hidden");
 	if (width < 100 || height < 100) {
 		console.log("WARNING: Very small area to display globe. Please adjust container size (Width: " + width + " Height: " + height+ ")");
 	}
 	var scene;
 	var atmosphereScene;
+	var particleScene;
 	var camera;
 	var renderer;
 	var sphere;
@@ -49,6 +51,9 @@ GLOBE.TYPES.Globe = function (cid) {
 	var defaultLight = new THREE.Vector3(-0.5,0.0,1.0); // front bottom (slight left)
 	var defaultLightIntensity = new THREE.Vector3(1.0,1.0,1.0);
 
+	/* country map */
+	var countryTweenMap= {}
+
 	/* texture URLs */
 	var atlas_url = 'img/atlas.png';
 	var cmap_url = 'img/cmap.png';
@@ -78,7 +83,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	var atmosphere;
 
 	/* Attributes */
-	obj.particleSize = 2;
+	obj.particleSize = 20;
 	obj.particleLifetime = 200;
 	obj.particleColor = [128,255,128 ];
 	obj.particleIntensity = 1.0;
@@ -107,7 +112,6 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	var lines = []; /* Lines for country/polar connections */
 
-	var countryDataColors = [];
 	var enabled = true;
 	var shaders = {
     		'earth' : {
@@ -138,7 +142,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				},
 				"countrydata" : { 
 					type: "t", 
-					value:  createCountryDataTexture(countryDataColors = createCountryDataArray())
+					value:  createCountryDataTexture()
 				},
 				"selection" :{
 					type: "v4",
@@ -198,6 +202,18 @@ GLOBE.TYPES.Globe = function (cid) {
 				'uniform vec3 lightintensity;',
 				'varying vec3 vNormal;',
 				'varying vec2 vUv;',
+				'float avgcol(float tv) {',
+					'float ret = 0.0;',
+					'int count = 0;',
+					'for (int x = -3; x < 4; x++) {',
+						'for(int y = -3; y < 4; y++) {',
+							'count++;',
+							'ret += ((texture2D(countrymap,vUv + vec2(float(x)/float(2000),float(y)/float(1000))).x == tv) ? 1.0 : 0.0 );',
+						'}',
+					'}',
+					'ret*= 1.0/float(count);',
+					'return ret;',
+				'}',
 				'void main() {',
 						  'vec2 pos = vec2(mousex, (1.0-mousey));',
 						  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
@@ -205,6 +221,7 @@ GLOBE.TYPES.Globe = function (cid) {
 						  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
 						  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
 							'ccol = vec4(selection.xyz,calpha*selection.w);',
+							'ccol*=avgcol(texture2D(countrymap,pos).x);',
 						  '} else {',
 							'float par = 256.0;',
 							'int cidx = int(texture2D(countrymap,vUv).x * par);',
@@ -215,7 +232,7 @@ GLOBE.TYPES.Globe = function (cid) {
 								'ccol = vec4(col,cintensity*calpha);',
 							'}',
 						  '}',
- 
+
 						  'vec3 city_additive = vec3(0.0,0.0,0.0);',
 					          'float day_factor = 1.0;',
 
@@ -300,6 +317,10 @@ GLOBE.TYPES.Globe = function (cid) {
 				color: {
 					type: 'v4',
 					value: particleColorToVector(obj.particleColor,obj.particleIntensity)
+				},
+				randomu: {
+					type: 'f',
+					value: 0.5
 				}
 			},
 			attributes: {
@@ -330,7 +351,12 @@ GLOBE.TYPES.Globe = function (cid) {
 				size: {
 					type: 'f',
 					value: []
-				} 
+				}, 
+				random: { 	
+					type: "f", 
+					value: []
+				}
+
 			},
 			vertexShader: [
 				/* Using varying vNormal here would break the globe working on fu***ng Windows with the following errors:
@@ -339,9 +365,11 @@ GLOBE.TYPES.Globe = function (cid) {
 				 * WebGL: INVALID_OPERATION: drawArrays: attribs not setup correctly
 				 *
 				 * */
+				'uniform sampler2D texture;',
 				'uniform float now;',
 				'uniform float hitstart;',
 				'uniform float hitend;',
+				'uniform float randomu;',
 
 				'attribute float longitude;',
 				'attribute float latitude;',
@@ -353,8 +381,10 @@ GLOBE.TYPES.Globe = function (cid) {
 				'attribute float lifetime;',
 
 				'attribute float size;',
+				'attribute float random;',
 
 				'varying float age;',
+				//'varying vec2 vUv;',
 				'vec4 convert_from_polar( vec3 coord )',
 				'{',
 					'float tmp = cos( coord.y );',
@@ -364,20 +394,21 @@ GLOBE.TYPES.Globe = function (cid) {
 				'}',
 
 				'void main() {',
-					'age = ((max(now-created,0.0) /lifetime));',
+					'age = ((max(now-created,0.0) / (lifetime + random * lifetime * 0.3)));',
 					//'float age = ((max(now-created,0.0) /lifetime));',
 					'if ( age <= 1.0 ) {',
 						'vec2 way = vec2( (longitude*(1.0-age) + longitude_d*age), (latitude*(1.0-age) + latitude_d*age));',
 						'float dage = age * 2.0;',
 						'if (dage > 1.0) { dage = 2.0 - dage; }',
 						//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
-						'vec4 coord = convert_from_polar(vec3(way,sin(age*3.142) * hitend + hitstart));',
-						'gl_PointSize = dage * size + 0.5;',
+						'vec4 coord = convert_from_polar(vec3(way,sin(age*3.142) * (hitend)  + hitstart ));',
+						'gl_PointSize = dage * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
 						'gl_Position = projectionMatrix * modelViewMatrix * coord;',
 					'} else {',
 						'gl_PointSize = 0.0;',
 						'gl_Position = projectionMatrix * modelViewMatrix * vec4(0.0,0.0,0.0,1.0);',
 					'}',
+					//'vUv = uv;',
 				'}'
 
 			].join('\n'),
@@ -385,12 +416,32 @@ GLOBE.TYPES.Globe = function (cid) {
 				'uniform sampler2D texture;',
 				'uniform vec4 color;',
 				'varying float age;',
-				'varying vec3 vNormal;',
-				'varying vec2 vUv;',
+				'uniform float v;',
+				//'varying vec2 vUv;',
 				'void main() {',
 					'float dage = age * 2.0;',
 					'if (dage > 1.0) { dage = 2.0 - dage; }',
-					'gl_FragColor = vec4(color.x,color.y,color.z,color.w - (dage*0.5));',
+					//'float d = texture2D( texture, gl_PointCoord ).a;',
+					//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
+
+					'float d = texture2D( texture, gl_PointCoord ).r ;',
+					'd = d * d;',
+					//'float d = 1.0;',
+					/*
+					"vec2 vUv = gl_PointCoord;",
+					"float d = 0.0;",
+
+					"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
+					"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
+					*/
+					'gl_FragColor = vec4(dage * d * color.xyz,d * color.w);',
 				
 				'}'
 			].join('\n')
@@ -483,14 +534,13 @@ GLOBE.TYPES.Globe = function (cid) {
 	function setCountryColor(iso,color) {
 		try {
 			console.log("Setting Globe country color: " + color.r + " " + color.g + " " + color.b);
-			_setCountryColor(iso,countryDataColors,color);
-			refreshCountryColors();
+			_setCountryColor(iso,color);
 		} catch (err) {
 			console.log("Cannot set Color for " + iso + " " + err);
 		}
 	}
 
-	function _setCountryColor(iso,map,color) {
+	function _setCountryColor(iso,color,index) {
 		var ma;
 
 		if (iso instanceof Array) {
@@ -499,91 +549,97 @@ GLOBE.TYPES.Globe = function (cid) {
 			ma = [iso];
 		}
 
-		var a = map;
+		if (index === undefined) {
+			index = 0;
+		}
+
+		var shader = shaders['earth'].uniforms.countrydata.value;
+
 		for (var x = 0; x < ma.length;x++) {
 			try {
-				var i = GLOBE.GEO.country_to_index(ma[x].toUpperCase()) * 2;
-				a[ i * 3] = color.r * 255;
-				a[ i * 3 + 1] = color.g * 255;
-				a[ i * 3 + 2] = color.b * 255;
+				var c = GLOBE.GEO.country_to_index(ma[x].toUpperCase());
+				var o = index * 256;
+				var i = c + o;
+				shader.image.data[ i * 3] = color.r * 255;
+				shader.image.data[ i * 3 + 1] = color.g * 255;
+				shader.image.data[ i * 3 + 2] = color.b * 255;
+				_switchCountryColor(c);
 			} catch (err) {
 				console.log("Unknown country: " + ma[x] + ": "+ err);
 			}
 		}
 	}
 
-	function clearCountryColors() {
-		switchCountryColors(createCountryDataArray());
-	}
-
 	function immediateClearCountryColors() {
-		immediateSwitchCountryColorSet(createCountryDataArray());
-	}
-
-	function switchCountryColorSet(list, color) {
-		var map = createCountryDataArray();
-		_setCountryColor(list,map,color);
-		switchCountryColors(map);
-	}
-
-	function immediateSwitchCountryColorSet(map) {
-		countryDataColors = map;
-		refreshCountryColors();
-	}
-
-	function switchCountryColors(map) {
-		var tween = new TWEEN.Tween( { x: 1.0, y:1.0  } )
-		    .to( { x: 1.1, y:0.0}, 300 )
-		    .easing( TWEEN.Easing.Linear.EaseNone )
-		    .onUpdate( function () {
-			    shaders['earth'].uniforms.calpha.value = this.y;
-			    atmosphere.scale.x= this.x * ATMOSPHERE_SIZE_FACTOR;
-			    atmosphere.scale.y= this.x * ATMOSPHERE_SIZE_FACTOR;
-			    atmosphere.scale.z= this.x * ATMOSPHERE_SIZE_FACTOR;
-
-			    shaders['earth'].uniforms.needsUpdate = true;
-			    atmosphere.needsUpdate=true;
-
-		    } )
-		    .onComplete( function () {
-			    immediateSwitchCountryColorSet(map);
-		    } )
-		    .chain( new TWEEN.Tween( {x: 1.1, y:0.0 })
-		    	.to( {x:1.0,y:1.0} , 300)
-		    	.easing( TWEEN.Easing.Linear.EaseNone )
-		    	.onUpdate( function () {
-			    shaders['earth'].uniforms.calpha.value = this.y;
-			    atmosphere.scale.x= this.x * ATMOSPHERE_SIZE_FACTOR;
-			    atmosphere.scale.y= this.x * ATMOSPHERE_SIZE_FACTOR;
-			    atmosphere.scale.z= this.x * ATMOSPHERE_SIZE_FACTOR;
-			    shaders['earth'].uniforms.needsUpdate = true;
-			    atmosphere.needsUpdate=true;
-			} )
-
-		    )
-		    .start();
-	}
-
-	function refreshCountryColors() {
-		shaders['earth'].uniforms.countrydata.value = createCountryDataTexture(countryDataColors);
+		var tex =  createCountryDataTexture();
+		shaders['earth'].uniforms.countrydata.value = tex;
 		shaders['earth'].uniforms.needsUpdate = true;
 	}
 
-	function createCountryDataArray() {
-		var rwidth = 256*2, rheight = 1, rsize = rwidth * rheight;
-		var dataColor = new Uint8Array( rsize * 3 );
-
-		for ( var i = 0; i < rsize; i ++ ) {
-		    dataColor[ i * 3 ]     = 0;
-		    dataColor[ i * 3 + 1 ] = 0;
-		    dataColor[ i * 3 + 2 ] = 0;
+	function clearCountryColors() {
+		var shader = shaders['earth'].uniforms.countrydata.value;
+		for (var i = 0; i < 256; i ++) {
+			shader.image.data[i * 3 + 0] = 0;
+			shader.image.data[i * 3 + 1] = 0;
+			shader.image.data[i * 3 + 2] = 0;
+			_switchCountryColor(i);
 		}
-
-		return dataColor;
 	}
 
-	function createCountryDataTexture(a) {
-		var text = new THREE.DataTexture( a, 256*2, 1, THREE.RGBFormat );
+	function switchCountryColorSet(list, color) {
+		_setCountryColor(list,color);
+	}
+
+	function _switchCountryColor(idx) {
+		var map = shaders['earth'].uniforms.countrydata.value;
+
+		if (countryTweenMap[idx] !== undefined) {
+			countryTweenMap[idx].stop();
+			delete countryTweenMap[idx];
+		}
+
+		if ( 	map.image.data[ (256 + idx) * 3 + 0] == map.image.data[ (idx) * 3 + 0] &&
+			map.image.data[ (256 + idx) * 3 + 1] == map.image.data[ (idx) * 3 + 1] &&
+			map.image.data[ (256 + idx) * 3 + 2] == map.image.data[ (idx) * 3 + 2]	) {
+			return;
+		}
+
+		var tween = new TWEEN.Tween( { 
+			r: map.image.data[ (256 + idx) * 3 + 0],
+			g: map.image.data[ (256 + idx) * 3 + 1],
+			b: map.image.data[ (256 + idx) * 3 + 2]
+		}).to ({
+			r: map.image.data[ (idx) * 3 + 0],
+			g: map.image.data[ (idx) * 3 + 1],
+			b: map.image.data[ (idx) * 3 + 2]
+		},500).onComplete(function() {
+			delete countryTweenMap[idx];
+		}).onUpdate( function() {
+			map.image.data[ (256 + idx) * 3 + 0] = this.r;
+			map.image.data[ (256 + idx) * 3 + 1] = this.g;
+			map.image.data[ (256 + idx) * 3 + 2] = this.b;
+			map.needsUpdate = true;
+		}).easing( TWEEN.Easing.Linear.EaseNone )
+		.start();
+		countryTweenMap[idx] = tween;
+	}
+
+	function setCountryLightning(opco,color) {
+		_setCountryColor(opco,color,1);
+	}
+
+	function getCountryLightning(opco) {
+		var map = shaders['earth'].uniforms.countrydata.value;
+		return new THREE.Color(
+			map.image.data[ (256 + idx) * 3 + 0]/255,
+			map.image.data[ (256 + idx) * 3 + 1]/255,
+			map.image.data[ (256 + idx) * 3 + 2]/255
+		);
+	}
+
+	function createCountryDataTexture() {
+		var text = THREE.ImageUtils.generateDataTexture(256,2,new THREE.Color(0x000000));
+		//var text = new THREE.DataTexture( a, 256, 2, THREE.RGBFormat );
 		text.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
 		text.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
 		//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
@@ -621,6 +677,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function buildParticles() {
 
+		particleScene = new THREE.Scene();
 		var shader = shaders['particle'];
 		var longs = shader.attributes.longitude.value;
 		var lats = shader.attributes.latitude.value;
@@ -629,6 +686,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var lifetimes = shader.attributes.lifetime.value;
 		var created = shader.attributes.created.value;
 		var sizes = shader.attributes.size.value;
+		var random = shader.attributes.size.value;
 		//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
 
 		particles = new THREE.Geometry();
@@ -642,6 +700,8 @@ GLOBE.TYPES.Globe = function (cid) {
 			desty[i] = degree_to_radius_latitude(0);
 			lifetimes[i] = 0;
 			sizes[i] = 0;
+			random[i] = 0.5;
+
 		}
 
 		//var material = new THREE.ParticleBasicMaterial( {
@@ -654,9 +714,9 @@ GLOBE.TYPES.Globe = function (cid) {
 				blending: THREE.AdditiveBlending,
 				//depthTest: true
 				depthTest: true,
-				wireframe: true
+				wireframe: true,
+		    		depthWrite: false //Magic setting to make particles not clipping ;)
 
-				//map: dummyTexture
 		});
 
 		particleSystem = new THREE.ParticleSystem(
@@ -665,7 +725,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		);
 
 		particleSystem.dynamic=true;
-		scene.add(particleSystem);
+		particleScene.add(particleSystem);
 		console.log("Particles initialized.");
 	}
 
@@ -687,6 +747,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			var lifetimes = shader.attributes.lifetime.value;
 			var created = shader.attributes.created.value;
 			var sizes = shader.attributes.size.value;
+			var random = shader.attributes.random.value;
 
 			var i = particle_cursor;
 
@@ -702,6 +763,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			desty[i] = (degree_to_radius_latitude(dy));
 			lifetimes[i] = (lifetime);
 			sizes[i] = particleSize;
+			random[i] = Math.random();
 
 			shader.attributes.longitude.needsUpdate=true;
 			shader.attributes.latitude.needsUpdate=true;
@@ -710,6 +772,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			shader.attributes.created.needsUpdate=true;
 			shader.attributes.lifetime.needsUpdate=true;
 			shader.attributes.size.needsUpdate=true;
+			shader.attributes.random.needsUpdate=true;
 
 			particle_cursor++;
 
@@ -765,6 +828,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	/** Create the earth atmosphere object. */
 	function buildAtmosphere() {
+		atmosphereScene = new THREE.Scene();
 		var shader = shaders['atmosphere'];
 		var atmosphereMaterial = new THREE.ShaderMaterial ( {
 			uniforms: shader.uniforms,
@@ -797,16 +861,8 @@ GLOBE.TYPES.Globe = function (cid) {
 		console.log("Data Pillars initialized.");
 	}
 
-	function factorToColor(factor) {
-		var c = new THREE.Color();
-		c.setHSL( ( 0.6 - ( factor * 0.5 ) ), 1.0, 0.5 );
-		//c.setHSL( 0.1 , 1.0, 0.5 );
-		//c.setHSV( ( 0.6 - ( factor * 0.5 ) ), 1.0, 1.0 );
-		return c;
-	}
-
 	function addDataPillar(lat,lng,factor) {
-		return addPillar(lat,lng,factor*PILLAR_FULLSIZE, factorToColor(factor).getHex());
+		return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
 	}
 
 	function addCountryPillar(iso,factor) {
@@ -997,7 +1053,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			var lat = data[i][1];
 			var val = data[i][2]/max;
 			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
-			var color = factorToColor(val);
+			var color = GLOBE.HELPER.factorToColor(val);
 			var scale = -((val*PILLAR_FULLSIZE));
 			point.scale.z = scale;
 			point.position = pos;
@@ -1020,7 +1076,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function changePillarFactor(pillar,factor) {
-		pillar.material.color = factorToColor(factor); // TODO: include this in animation.
+		pillar.material.color = GLOBE.HELPER.factorToColor(factor); // TODO: include this in animation.
 		var tween = new TWEEN.Tween( {x: pillar.scale.z } )
 			.to ( {x: -(PILLAR_FULLSIZE*factor)}, 1000 )
             		.easing( TWEEN.Easing.Linear.EaseNone )
@@ -1188,16 +1244,17 @@ GLOBE.TYPES.Globe = function (cid) {
 	function init() {
 		try {
 			scene = new THREE.Scene();
-			atmosphereScene = new THREE.Scene();
 			projector = new THREE.Projector();
 			//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
 			//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
 			camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
 			renderer = new THREE.WebGLRenderer();
-			renderer.setSize( window.innerWidth, window.innerHeight );                                                                                                
+			renderer.setSize( width, height );                                                                                                
 			//renderer.setClearColorHex(0x000000, 0.0);
-			renderer.setClearColor(0x000000, 0.0);
+			//renderer.setClearColor(0x000000, 0.0);
+			renderer.setClearColor(0x000000, 1);
 			renderer.autoClear = false;
+			renderer.setBlending(THREE.AdditiveBlending);
 
 			scene.add(camera);
 			camera.position.z = distance;
@@ -1229,9 +1286,11 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		camera.lookAt(scene.position);
 		camera.updateProjectionMatrix();
+
 		renderer.clear();
-	    	renderer.render(scene, camera);
+		renderer.render(scene, camera);
 		renderer.render(atmosphereScene, camera);
+		renderer.render(particleScene, camera);
 	}
 
 	function animate() {
@@ -1240,11 +1299,19 @@ GLOBE.TYPES.Globe = function (cid) {
 			TWEEN.update();
 			tic+=1;
 			shaders['particle'].uniforms.now.value = tic;
+			shaders['particle'].uniforms.randomu.value = Math.random();
+
+			// Wait 50 frames before sending initialized event.
+			if (tic == 50) {
+				$(document).trigger('globe:initialized',[]);
+			}
 
 			render();
 		}
 	}
 
+	/* Zoom/Scale globe and atmosphere within given boundaries. 
+	 * This is called for every frame render. */
 	function zoom(delta) {
 		distanceTarget -= delta;
 		var min = RADIUS * 1.1;
@@ -1472,6 +1539,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		mouseMoveHandler = f;
 	}
 
+	function setParticleSize(size) {
+		obj.particleSize = size;
+	}
+
 	/* Plug all together */
 	init();
 	buildParticles();
@@ -1494,13 +1565,12 @@ GLOBE.TYPES.Globe = function (cid) {
 	obj.setCountryColor = setCountryColor;
 	obj.unsetCountryColor = unsetCountryColor;
 	obj.clearCountryColors = clearCountryColors;
+	obj.immediateClearCountryColors = immediateClearCountryColors;
 	obj.applyDatGuiControlConfiguration = applyDatGuiControlConfiguration;
 	obj.switchCountryColorSet = switchCountryColorSet;
 	obj.setHoverCountry = setHoverCountry;
 	obj.stop = stop;
 	obj.start = start;
-	obj.immediateSwitchCountryColorSet = immediateSwitchCountryColorSet;
-	obj.immediateClearCountryColors = immediateClearCountryColors;
 	obj.getContainerId = getContainerId;
 	obj.connectCountry = connectCountry;
 	obj.connectPolar = connectPolar;
@@ -1512,6 +1582,10 @@ GLOBE.TYPES.Globe = function (cid) {
 	obj.setTime = setTime;
 	obj.enableDaylight = enableDaylight;
 	obj.disableDaylight = disableDaylight;
+	obj.setParticleSize = setParticleSize;
+	obj.setCountryLightning = setCountryLightning;
+	obj.getCountryLightning = getCountryLightning;
+	//obj.shaders = shaders; /* export for debuging purposes */
 
 	render();
 	updateTime();
