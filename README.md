@@ -3,6 +3,8 @@ globejs
 
 web-gl based globe application inspired by the web-gl globe of the google arts team.
 
+## Live Example
+A live example can be found [here](http://globe.nakedape.net).
 
 ## Requirements
 Currently [google chrome](http://www.google.com/chrome), [firefox](http://www.mozilla.org/firefox/) as well
