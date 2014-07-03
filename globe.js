@@ -114,350 +114,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		var lines = []; /* Lines for country/polar connections */
 
 		var enabled = true;
-		var shaders = {
-			'earth' : {
-				uniforms: {
-					'texture': { 
-						type: 't', 
-						value: undefined
-					},
-					'countrymap': { 
-						type: 't', 
-						value: undefined
-					},
-					'color_intensity': {
-						type: 'f',
-						value: 1.0
-					},
-					'brightness': {
-						type: 'f',
-						value: 1.0
-					},
-					'mousex': {
-						type: 'f',
-						value: 0
-					},
-					'mousey': {
-						type: 'f',
-						value: 0
-					},
-					"countrydata" : { 
-						type: "t", 
-						value:  createCountryDataTexture()
-					},
-					"selection" :{
-						type: "v4",
-						value:  countryColorToVector(obj.hoverColor,obj.colorIntensity)
-					},
-					"cintensity" :{
-						type: "f",
-						value: obj.colorIntensity
-					},
-					"bintensity" : {
-						type: "f",
-						value: obj.borderIntensity
-					},
-					"heightfactor" : {
-						type: "f",
-						value: 1.0
-					},
-					"calpha" :{
-						type: "f",
-						value: 1.0
-					},
-					"lightvector" : {
-						type: "v3",
-						value:  defaultLight
-					},
-					"lightintensity": {
-						type: "v3",
-						value: defaultLightIntensity
-					}
 
-				},
-				vertexShader: [
-					'varying vec3 vNormal;',
-					'varying vec2 vUv;',
-					'uniform sampler2D texture;',
-					'uniform float heightfactor;',
-					'void main() {',
-					  'float hf = 1.0 - texture2D(texture,vec2(uv.x,(uv.y/2.0) + 0.5)).w;',
-					  'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 - (hf*0.06*heightfactor) );',
-					  'vNormal = normalize( normalMatrix * normal );',
-					  'vUv = uv;',
-					'}'
-				].join('\n'),
-				fragmentShader: [
-					'uniform sampler2D texture;',
-					'uniform sampler2D countrymap;',
-					'uniform float brightness;',
-					'uniform float color_intensity;',
-					'uniform float mousex;',
-					'uniform float mousey;',
-					'uniform sampler2D countrydata;',
-					'uniform float cintensity;',
-					'uniform float calpha;',
-					'uniform vec4 selection;',
-					'uniform float bintensity;',
-					'uniform vec3 lightvector;',
-					'uniform vec3 lightintensity;',
-					'varying vec3 vNormal;',
-					'varying vec2 vUv;',
-					'float avgcol(float tv) {',
-						'float ret = 0.0;',
-						'int count = 0;',
-						'for (int x = -3; x < 4; x++) {',
-							'for(int y = -3; y < 4; y++) {',
-								'count++;',
-								'ret += ((texture2D(countrymap,vUv + vec2(float(x)/float(2000),float(y)/float(1000))).x == tv) ? 1.0 : 0.0 );',
-							'}',
-						'}',
-						'ret*= 1.0/float(count);',
-						'return ret;',
-					'}',
-					'void main() {',
-							  'vec2 pos = vec2(mousex, (1.0-mousey));',
-							  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
-							  'vec2 vUv2 = vec2(vUv.x,(vUv.y/2.0));',
-							  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
-							  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
-								'ccol = vec4(selection.xyz,calpha*selection.w);',
-								'ccol*=avgcol(texture2D(countrymap,pos).x);',
-							  '} else {',
-								'float par = 256.0;',
-								'int cidx = int(texture2D(countrymap,vUv).x * par);',
-								'float cc = float(cidx) / par;',
-								'if (cc > 0.0) {',
-									'vec2 datapos = vec2(cc,0.0);',
-									'vec3 col = texture2D(countrydata,datapos).xyz;',
-									'ccol = vec4(col,cintensity*calpha);',
-								'}',
-							  '}',
-
-							  'vec3 city_additive = vec3(0.0,0.0,0.0);',
-							  'float day_factor = 1.0;',
-
-							  'if (lightintensity.x >= 0.0 && lightintensity.y >= 0.0 && lightintensity.z >= 0.0) {',
-								  'vec3 lightv= normalize(lightvector);',
-								  'day_factor = max(0.0,dot(vNormal, lightv));',
-								  'if (day_factor < 5.0) {',
-									'float city_val = texture2D(texture,vUv2).z;',
-									'city_additive = vec3(city_val,city_val,city_val * 0.5) * (2.0 - (day_factor * 2.0));',
-								  '}',
-							  '}',
-
-							  'vec3 border_additive = vec3(1.0,1.0,1.0) * (texture2D(texture,vUv2).y) * bintensity;',
-							  'float intensity = 1.05 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) );',
-							  'vec3 atmosphere = vec3( 0.5, 0.5, 1.0 ) * pow( intensity, 3.0 );',
-							  'vec3 diffuse = texture2D( texture, vUv1 ).xyz;',
-
-							  'float col_int = color_intensity * (day_factor);',
-							  'if (col_int < 1.0) {;',
-								'float ci = (1.0 - col_int);',
-								'float avgcv = (diffuse.x + diffuse.y + diffuse.z) / 3.0;',
-								'float xa = (diffuse.x - avgcv)*ci;',
-								'float ya = (diffuse.y - avgcv)*ci;',
-								'float za = (diffuse.z - avgcv)*ci;',
-								'diffuse = vec3(diffuse.x - xa,diffuse.y - ya, diffuse.z - za);',
-							  '}',
-							  'gl_FragColor = vec4( (diffuse * brightness * (day_factor)) + (atmosphere * day_factor) + border_additive + (ccol.xyz * ccol.w) + city_additive, 1.0 );',
-					'}'
-				].join('\n')
-			},
-			'atmosphere' : {
-				uniforms: {
-					"lightvector" : {
-						type: "v3",
-						value:  defaultLight
-					},
-					"lightintensity": {
-						type: "v3",
-						value: defaultLightIntensity
-					}
-				},
-				vertexShader: [
-					'varying vec3 vNormal;',
-					'void main() {',
-					  'vNormal = normalize( normalMatrix * normal );',
-					  'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
-					'}'
-				].join('\n'),
-				fragmentShader: [
-					'varying vec3 vNormal;',
-					'uniform vec3 lightvector;',
-					'uniform vec3 lightintensity;',
-					'void main() {',
-					  'vec3  lightv= normalize(lightvector);',
-					  'float day_factor = dot(vNormal, lightv)+0.5;',
-					  'float intensity = pow( 0.8 - dot( vNormal, vec3( 0, 0, 1.0 ) ), 12.0 );',
-					  'if (lightintensity.x < 0.0 || lightintensity.y < 0.0 || lightintensity.z < 0.0) {',
-						  'day_factor = 1.0;',
-					  '}',
-					  'gl_FragColor = vec4( (day_factor * 1.5)  * vec3(0.5, 0.5, 1.0), 1.0 ) * intensity;',
-					'}'
-				].join('\n')
-			},
-			'particle' : {
-				uniforms: {
-					now: {
-						type: 'f',
-						value: 0
-					},
-					hitstart: {
-						type: 'f',
-						value: RADIUS
-					},
-					hitend: {
-						type: 'f',
-						value: RADIUS / 10
-					},
-					texture: { 
-						type: 't', 
-						value: THREE.ImageUtils.loadTexture( 'img/particle.png' ) 
-					},
-					randomu: {
-						type: 'f',
-						value: 0.5
-					}
-				},
-				attributes: {
-					longitude: {
-						type: 'f',
-						value: []
-					},
-					latitude: {
-						type: 'f',
-						value: []
-					},
-					longitude_d: {
-						type: 'f',
-						value: []
-					},
-					latitude_d: {
-						type: 'f',
-						value: []
-					},
-					created: {
-						type: 'f',
-						value: []
-					},
-					lifetime: {
-						type: 'f',
-						value: []
-					},
-					color: {
-						type: 'v4',
-						value: []
-					},
-					size: {
-						type: 'f',
-						value: []
-					}, 
-					heightfactor: {
-						type: 'f',
-						value: []
-					},
-					random: { 	
-						type: "f", 
-						value: []
-					}
-
-				},
-				vertexShader: [
-					/* Using varying vNormal here would break the globe working on fu***ng Windows with the following errors:
-					 *
-					 * WebGL: INVALID_OPERATION: vertexAttribPointer: no bound ARRAY_BUFFER 
-					 * WebGL: INVALID_OPERATION: drawArrays: attribs not setup correctly
-					 *
-					 * */
-					'uniform sampler2D texture;',
-					'uniform float now;',
-					'uniform float hitstart;',
-					'uniform float hitend;',
-					'uniform float randomu;',
-
-					'attribute float longitude;',
-					'attribute float latitude;',
-
-					'attribute float longitude_d;',
-					'attribute float latitude_d;',
-
-					'attribute float created;',
-					'attribute float lifetime;',
-
-					'attribute float heightfactor;',
-					'attribute float size;',
-					'attribute float random;',
-
-					'attribute vec4 color;',
-					'varying vec4 col;',
-
-					'varying float age;',
-					//'varying vec2 vUv;',
-					'vec4 convert_from_polar( vec3 coord )',
-					'{',
-						'float tmp = cos( coord.y );',
-						'vec4 res = vec4(tmp * sin( coord.x ), sin( coord.y ), tmp * cos( coord.x ), 0.0) * coord.z;',
-						'res.w = 1.0;',
-						'return res;',
-					'}',
-
-					'void main() {',
-						'age = ((max(now-created,0.0) / (lifetime + random * lifetime * 0.3)));',
-						'col = color;',
-						//'float age = ((max(now-created,0.0) /lifetime));',
-						'if ( age <= 1.0 ) {',
-							'vec2 way = vec2( (longitude*(1.0-age) + longitude_d*age), (latitude*(1.0-age) + latitude_d*age));',
-							'float dage = age * 2.0;',
-							'if (dage > 1.0) { dage = 2.0 - dage; }',
-							//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
-							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart ));',
-							'gl_PointSize = dage * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
-							'gl_Position = projectionMatrix * modelViewMatrix * coord;',
-						'} else {',
-							'gl_PointSize = 0.0;',
-							'gl_Position = projectionMatrix * modelViewMatrix * vec4(0.0,0.0,0.0,1.0);',
-						'}',
-						//'vUv = uv;',
-					'}'
-
-				].join('\n'),
-				fragmentShader: [
-					'uniform sampler2D texture;',
-					'varying float age;',
-					'varying vec4 col;',
-					'uniform float v;',
-					//'varying vec2 vUv;',
-					'void main() {',
-						'float dage = age * 2.0;',
-						'if (dage > 1.0) { dage = 2.0 - dage; }',
-						//'float d = texture2D( texture, gl_PointCoord ).a;',
-						//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
-
-						'float d = texture2D( texture, gl_PointCoord ).r ;',
-						'd = d * d;',
-						//'float d = 1.0;',
-						/*
-						"vec2 vUv = gl_PointCoord;",
-						"float d = 0.0;",
-
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
-						*/
-						'gl_FragColor = vec4(dage * d * col.xyz,d * col.w);',
-					
-					'}'
-				].join('\n')
-			}
-		};
-		
+		var shaders = {};
+				
 		function countryColorToVector(c,i) {
 			return new THREE.Vector4(c[0]/256,c[1]/256,c[2]/256,i);
 		}
@@ -1568,6 +1227,351 @@ GLOBE.TYPES.Globe = function (cid) {
 		function setParticleSize(size) {
 			obj.particleSize = size;
 		}
+
+		shaders = {
+			'earth' : {
+				uniforms: {
+					'texture': { 
+						type: 't', 
+						value: undefined
+					},
+					'countrymap': { 
+						type: 't', 
+						value: undefined
+					},
+					'color_intensity': {
+						type: 'f',
+						value: 1.0
+					},
+					'brightness': {
+						type: 'f',
+						value: 1.0
+					},
+					'mousex': {
+						type: 'f',
+						value: 0
+					},
+					'mousey': {
+						type: 'f',
+						value: 0
+					},
+					"countrydata" : { 
+						type: "t", 
+						value:  createCountryDataTexture()
+					},
+					"selection" :{
+						type: "v4",
+						value:  countryColorToVector(obj.hoverColor,obj.colorIntensity)
+					},
+					"cintensity" :{
+						type: "f",
+						value: obj.colorIntensity
+					},
+					"bintensity" : {
+						type: "f",
+						value: obj.borderIntensity
+					},
+					"heightfactor" : {
+						type: "f",
+						value: 1.0
+					},
+					"calpha" :{
+						type: "f",
+						value: 1.0
+					},
+					"lightvector" : {
+						type: "v3",
+						value:  defaultLight
+					},
+					"lightintensity": {
+						type: "v3",
+						value: defaultLightIntensity
+					}
+
+				},
+				vertexShader: [
+					'varying vec3 vNormal;',
+					'varying vec2 vUv;',
+					'uniform sampler2D texture;',
+					'uniform float heightfactor;',
+					'void main() {',
+					  'float hf = 1.0 - texture2D(texture,vec2(uv.x,(uv.y/2.0) + 0.5)).w;',
+					  'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 - (hf*0.06*heightfactor) );',
+					  'vNormal = normalize( normalMatrix * normal );',
+					  'vUv = uv;',
+					'}'
+				].join('\n'),
+				fragmentShader: [
+					'uniform sampler2D texture;',
+					'uniform sampler2D countrymap;',
+					'uniform float brightness;',
+					'uniform float color_intensity;',
+					'uniform float mousex;',
+					'uniform float mousey;',
+					'uniform sampler2D countrydata;',
+					'uniform float cintensity;',
+					'uniform float calpha;',
+					'uniform vec4 selection;',
+					'uniform float bintensity;',
+					'uniform vec3 lightvector;',
+					'uniform vec3 lightintensity;',
+					'varying vec3 vNormal;',
+					'varying vec2 vUv;',
+					'float avgcol(float tv) {',
+						'float ret = 0.0;',
+						'int count = 0;',
+						'for (int x = -3; x < 4; x++) {',
+							'for(int y = -3; y < 4; y++) {',
+								'count++;',
+								'ret += ((texture2D(countrymap,vUv + vec2(float(x)/float(2000),float(y)/float(1000))).x == tv) ? 1.0 : 0.0 );',
+							'}',
+						'}',
+						'ret*= 1.0/float(count);',
+						'return ret;',
+					'}',
+					'void main() {',
+							  'vec2 pos = vec2(mousex, (1.0-mousey));',
+							  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
+							  'vec2 vUv2 = vec2(vUv.x,(vUv.y/2.0));',
+							  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
+							  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
+								'ccol = vec4(selection.xyz,calpha*selection.w);',
+								'ccol*=avgcol(texture2D(countrymap,pos).x);',
+							  '} else {',
+								'float par = 256.0;',
+								'int cidx = int(texture2D(countrymap,vUv).x * par);',
+								'float cc = float(cidx) / par;',
+								'if (cc > 0.0) {',
+									'vec2 datapos = vec2(cc,0.0);',
+									'vec3 col = texture2D(countrydata,datapos).xyz;',
+									'ccol = vec4(col,cintensity*calpha);',
+								'}',
+							  '}',
+
+							  'vec3 city_additive = vec3(0.0,0.0,0.0);',
+							  'float day_factor = 1.0;',
+
+							  'if (lightintensity.x >= 0.0 && lightintensity.y >= 0.0 && lightintensity.z >= 0.0) {',
+								  'vec3 lightv= normalize(lightvector);',
+								  'day_factor = max(0.0,dot(vNormal, lightv));',
+								  'if (day_factor < 5.0) {',
+									'float city_val = texture2D(texture,vUv2).z;',
+									'city_additive = vec3(city_val,city_val,city_val * 0.5) * (2.0 - (day_factor * 2.0));',
+								  '}',
+							  '}',
+
+							  'vec3 border_additive = vec3(1.0,1.0,1.0) * (texture2D(texture,vUv2).y) * bintensity;',
+							  'float intensity = 1.05 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) );',
+							  'vec3 atmosphere = vec3( 0.5, 0.5, 1.0 ) * pow( intensity, 3.0 );',
+							  'vec3 diffuse = texture2D( texture, vUv1 ).xyz;',
+
+							  'float col_int = color_intensity * (day_factor);',
+							  'if (col_int < 1.0) {;',
+								'float ci = (1.0 - col_int);',
+								'float avgcv = (diffuse.x + diffuse.y + diffuse.z) / 3.0;',
+								'float xa = (diffuse.x - avgcv)*ci;',
+								'float ya = (diffuse.y - avgcv)*ci;',
+								'float za = (diffuse.z - avgcv)*ci;',
+								'diffuse = vec3(diffuse.x - xa,diffuse.y - ya, diffuse.z - za);',
+							  '}',
+							  'gl_FragColor = vec4( (diffuse * brightness * (day_factor)) + (atmosphere * day_factor) + border_additive + (ccol.xyz * ccol.w) + city_additive, 1.0 );',
+					'}'
+				].join('\n')
+			},
+			'atmosphere' : {
+				uniforms: {
+					"lightvector" : {
+						type: "v3",
+						value:  defaultLight
+					},
+					"lightintensity": {
+						type: "v3",
+						value: defaultLightIntensity
+					}
+				},
+				vertexShader: [
+					'varying vec3 vNormal;',
+					'void main() {',
+					  'vNormal = normalize( normalMatrix * normal );',
+					  'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
+					'}'
+				].join('\n'),
+				fragmentShader: [
+					'varying vec3 vNormal;',
+					'uniform vec3 lightvector;',
+					'uniform vec3 lightintensity;',
+					'void main() {',
+					  'vec3  lightv= normalize(lightvector);',
+					  'float day_factor = dot(vNormal, lightv)+0.5;',
+					  'float intensity = pow( 0.8 - dot( vNormal, vec3( 0, 0, 1.0 ) ), 12.0 );',
+					  'if (lightintensity.x < 0.0 || lightintensity.y < 0.0 || lightintensity.z < 0.0) {',
+						  'day_factor = 1.0;',
+					  '}',
+					  'gl_FragColor = vec4( (day_factor * 1.5)  * vec3(0.5, 0.5, 1.0), 1.0 ) * intensity;',
+					'}'
+				].join('\n')
+			},
+			'particle' : {
+				uniforms: {
+					now: {
+						type: 'f',
+						value: 0
+					},
+					hitstart: {
+						type: 'f',
+						value: RADIUS
+					},
+					hitend: {
+						type: 'f',
+						value: RADIUS / 10
+					},
+					texture: { 
+						type: 't', 
+						value: THREE.ImageUtils.loadTexture( 'img/particle.png' ) 
+					},
+					randomu: {
+						type: 'f',
+						value: 0.5
+					}
+				},
+				attributes: {
+					longitude: {
+						type: 'f',
+						value: []
+					},
+					latitude: {
+						type: 'f',
+						value: []
+					},
+					longitude_d: {
+						type: 'f',
+						value: []
+					},
+					latitude_d: {
+						type: 'f',
+						value: []
+					},
+					created: {
+						type: 'f',
+						value: []
+					},
+					lifetime: {
+						type: 'f',
+						value: []
+					},
+					color: {
+						type: 'v4',
+						value: []
+					},
+					size: {
+						type: 'f',
+						value: []
+					}, 
+					heightfactor: {
+						type: 'f',
+						value: []
+					},
+					random: { 	
+						type: "f", 
+						value: []
+					}
+
+				},
+				vertexShader: [
+					/* Using varying vNormal here would break the globe working on fu***ng Windows with the following errors:
+					 *
+					 * WebGL: INVALID_OPERATION: vertexAttribPointer: no bound ARRAY_BUFFER 
+					 * WebGL: INVALID_OPERATION: drawArrays: attribs not setup correctly
+					 *
+					 * */
+					'uniform sampler2D texture;',
+					'uniform float now;',
+					'uniform float hitstart;',
+					'uniform float hitend;',
+					'uniform float randomu;',
+
+					'attribute float longitude;',
+					'attribute float latitude;',
+
+					'attribute float longitude_d;',
+					'attribute float latitude_d;',
+
+					'attribute float created;',
+					'attribute float lifetime;',
+
+					'attribute float heightfactor;',
+					'attribute float size;',
+					'attribute float random;',
+
+					'attribute vec4 color;',
+					'varying vec4 col;',
+
+					'varying float age;',
+					//'varying vec2 vUv;',
+					'vec4 convert_from_polar( vec3 coord )',
+					'{',
+						'float tmp = cos( coord.y );',
+						'vec4 res = vec4(tmp * sin( coord.x ), sin( coord.y ), tmp * cos( coord.x ), 0.0) * coord.z;',
+						'res.w = 1.0;',
+						'return res;',
+					'}',
+
+					'void main() {',
+						'age = ((max(now-created,0.0) / (lifetime + random * lifetime * 0.3)));',
+						'col = color;',
+						//'float age = ((max(now-created,0.0) /lifetime));',
+						'if ( age <= 1.0 ) {',
+							'vec2 way = vec2( (longitude*(1.0-age) + longitude_d*age), (latitude*(1.0-age) + latitude_d*age));',
+							'float dage = age * 2.0;',
+							'if (dage > 1.0) { dage = 2.0 - dage; }',
+							//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
+							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart ));',
+							'gl_PointSize = dage * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
+							'gl_Position = projectionMatrix * modelViewMatrix * coord;',
+						'} else {',
+							'gl_PointSize = 0.0;',
+							'gl_Position = projectionMatrix * modelViewMatrix * vec4(0.0,0.0,0.0,1.0);',
+						'}',
+						//'vUv = uv;',
+					'}'
+
+				].join('\n'),
+				fragmentShader: [
+					'uniform sampler2D texture;',
+					'varying float age;',
+					'varying vec4 col;',
+					'uniform float v;',
+					//'varying vec2 vUv;',
+					'void main() {',
+						'float dage = age * 2.0;',
+						'if (dage > 1.0) { dage = 2.0 - dage; }',
+						//'float d = texture2D( texture, gl_PointCoord ).a;',
+						//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
+
+						'float d = texture2D( texture, gl_PointCoord ).r ;',
+						'd = d * d;',
+						//'float d = 1.0;',
+						/*
+						"vec2 vUv = gl_PointCoord;",
+						"float d = 0.0;",
+
+						"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
+						"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
+						*/
+						'gl_FragColor = vec4(dage * d * col.xyz,d * col.w);',
+					
+					'}'
+				].join('\n')
+			}
+		};
+
 
 		/* Plug all together */
 		init();
