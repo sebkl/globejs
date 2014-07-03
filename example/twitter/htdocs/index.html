@@ -13,6 +13,7 @@ var gui;
 
 var lc = new THREE.Color(0x5f5fff);
 var tc = new Array(180*2);
+var callcount = 0;
 for (var i = 0; i < 180*2; i++) {
 	tc[i] = new Array(90*2);
 }
@@ -59,8 +60,10 @@ function Next() {
 		var val = map[opco]/max;
 		globe.setCountryLightning(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
 	}
-	scroll(250);
-	setTimeout(Next,300);
+	callcount++;
+
+	scroll(500);
+	setTimeout(Next,500);
 };
 
 function Start() {
@@ -111,14 +114,23 @@ function addImage(l) {
 
 function scroll(time) {
 	var imgs = $("#pics").find('img');
-	var tr = ((imgs.length - 40)/2);
-	if (tr > 0) {
+	var tr = Math.round((imgs.length - 60)/3);
+	if (tr >= 1) {
+		var easing = "linear";
+
+		if (tr < 5) {
+			tr = 1
+		} else {
+			tr = tr - 3
+		}
+
 		var mo = tr*100;
 		$('#pics').animate({
 			top: "-="+mo
-		},time,function() {
+		},time,easing,function() {
 			$('#pics').css('top','-100px');
 			for (var i = 0; i <tr;i++) {
+				$('#pics').find('img')[0].remove();
 				$('#pics').find('img')[0].remove();
 				$('#pics').find('img')[0].remove();
 			}
@@ -144,7 +156,7 @@ $(document).ready(function() {
 	    img.picture { border: 0px; width: 200px; height: 200px;}
 	    #pics img.picture { opacity: 0.7; border: 0px; width: 96px; height: 96px; margin: 2px;}
 	    #pics img.picture:hover { opacity:1.0;}
-	    #pics { position: absolute; right: 0px; top: -100px; border: 0px; height: 100%; width: 200px; opacity: 1.0;}
+	    #pics { position: absolute; right: 0px; top: -100px; border: 0px; height: 100%; width: 300px; opacity: 1.0;}
     </style>
   </head>
   <body>
