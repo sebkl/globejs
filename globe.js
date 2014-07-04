@@ -648,6 +648,11 @@ GLOBE.TYPES.Globe = function (cid) {
 			lines = [];
 		}
 
+		function _setPillarData(factor) {
+			this.scale.z =-((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
+			this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
+		}
+
 		function addPillar(lng,lat, size,color) {
 			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
 
@@ -660,8 +665,10 @@ GLOBE.TYPES.Globe = function (cid) {
 			blendPillar(pillar,0.0,1.0);
 			pillars.push(pillar);
 			scene.add(pillar);
+			pillar.setData = _setPillarData;
 			return pillar;
 		}
+
 
 		function blendPillar(pillar,f_fac,t_fac,complete) {
 
