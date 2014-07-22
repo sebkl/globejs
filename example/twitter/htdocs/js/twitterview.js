@@ -29,67 +29,72 @@ function calcPicBuffer() {
 function Next() {
 	var startcall = new Date().getTime()
 	GOTOJS.Tweets.Next(function(messages) {
-		var map ={};
-		var max = 0;
-		for (var i in messages) {
-			var message = messages[i];
-			var tweet = message.payload;
+		try {
+			var map ={};
+			var max = 0;
+			for (var i in messages) {
+				var message = messages[i];
+				var tweet = message.payload;
 
-			if (tweet != null) {
-				tweetcount++;
-				var lo = tweet['long'];
-				var la = -tweet['lat'];
-				var opco = GLOBE.GEO.lookup_country(lo,la);
+				if (tweet != null) {
+					tweetcount++;
+					var lo = tweet['long'];
+					var la = -tweet['lat'];
+					var opco = GLOBE.GEO.lookup_country(lo,la);
 
-				var imgs = tweet.images;
+					var imgs = tweet.images;
 
-				if (imgs != null && imgs.length > 0) {
-					if (enableImageStream) {
-						addImage(tweet.thumbnail,{latitude: la, longitude: lo});
-					}
+					if (imgs != null && imgs.length > 0) {
+						if (enableImageStream) {
+							addImage(tweet.thumbnail,{latitude: la, longitude: lo});
+						}
 
-					if (tweet.isnude || tweet.issensitive) {
-						globe.createSourceParticle(lo,la,[255,128,0]);
+						if (tweet.isnude || tweet.issensitive) {
+							globe.createSourceParticle(lo,la,[255,128,0]);
+						} else {
+							globe.createSourceParticle(lo,la);
+						}
+					} else if (tweet['retweet']) {
+						globe.createSourceParticle(lo,la,[255,255,255]);
 					} else {
-						globe.createSourceParticle(lo,la);
+						globe.createSourceParticle(lo,la,[0,128,255]);
 					}
-				} else if (tweet['retweet']) {
-					globe.createSourceParticle(lo,la,[255,255,255]);
-				} else {
-					globe.createSourceParticle(lo,la,[0,128,255]);
-				}
 
-				var x = parseInt(lo + 180);
-				var y = parseInt(la + 90);
-				if (tc[x][y] === undefined) {
-					if (enableTweetTracking) {
-						tc[x][y] = { tweet: tweet, count: 1, pillar: globe.addDataPillar(lo,la,1/1000)};
+					var x = parseInt(lo + 180);
+					var y = parseInt(la + 90);
+					if (tc[x][y] === undefined) {
+						if (enableTweetTracking) {
+							tc[x][y] = { tweet: tweet, count: 1, pillar: globe.addDataPillar(lo,la,1/1000)};
+						}
+					} else {
+						tc[x][y].tweet = tweet;
+						tc[x][y].count++;
+						if (tc[x][y].count > maxtc) {
+							maxtc = tc[x][y].count;
+						}
+						tc[x][y].pillar.setData(tc[x][y].count/maxtc);
 					}
-				} else {
-					tc[x][y].tweet = tweet;
-					tc[x][y].count++;
-					if (tc[x][y].count > maxtc) {
-						maxtc = tc[x][y].count;
-					}
-					tc[x][y].pillar.setData(tc[x][y].count/maxtc);
-				}
 
-				if (map[opco] === undefined) {
-					map[opco] = 0;
-				}
-				map[opco]++;
-				if (map[opco] > max) {
-					max = map[opco];
-				}
-			}		
+					if (map[opco] === undefined) {
+						map[opco] = 0;
+					}
+					map[opco]++;
+					if (map[opco] > max) {
+						max = map[opco];
+					}
+				}		
+			}
+			for (var opco in map) {
+				var val = map[opco]/max;
+				globe.setCountryLightning(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
+			}
+			callcount++;
+			endcall = new Date().getTime()
+			scroll(endcall - startcall + 500);
+		} catch(e) {
+			console.log("Server fetch failed: ");
+			console.log(e);
 		}
-		for (var opco in map) {
-			var val = map[opco]/max;
-			globe.setCountryLightning(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
-		}
-		callcount++;
-		endcall = new Date().getTime()
-		scroll(endcall - startcall + 500);
 		setTimeout(Next,500);
 	}); //TODO: make async and use callback
 };
@@ -250,7 +255,6 @@ $(document).ready(function() {
 
 	$('#image_button').click(function(event) {
 		enableImageStream = !enableImageStream;
-		updateButtons();
 	});
 
 	$('#tweets_button').click(function(event) {

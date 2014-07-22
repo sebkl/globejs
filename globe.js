@@ -70,7 +70,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var targetOnDown = 	{ x: 0, y: 0 };                                                                                                                          
 
 		var overRenderer = true;
-																				      
+
 		var distance = 100000;
 		var distanceTarget = 100000;                                                                                                             
 		var tic = 0;
@@ -83,19 +83,19 @@ GLOBE.TYPES.Globe = function (cid) {
 		var sphereGeometryLowRes;
 		var atmosphere;
 
-		/* Attributes */
+		/* Attributes also maintained by DAT-GUI. */
 		obj.particleSize = 20;
 		obj.particleLifetime = 200;
 		obj.particleColor = [128,255,128 ];
 		obj.particleIntensity = 1.0;
 
-		/* earth uniforms */
-		obj.brightness = 1.0;
-		obj.colorization = 1.0;
+		obj.brightness = 1.0; 	/* earth uniform */
+		obj.colorization = 1.0; /* earth uniform */
 
 		obj.hoverColor = [ 255,128,128 ];
 		obj.colorIntensity = 0.4;
 		obj.borderIntensity = 0.3;
+		/* ---- */
 
 		var projector;
 		var mouse_polar;
@@ -471,6 +471,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
+		/* Lazy initialized hi-res spehere geometry. */
 		function getSphereGeometryHiRes() {
 			if (sphereGeometryHiRes === undefined) {
 				sphereGeometryHiRes = new THREE.SphereGeometry( RADIUS,80,40 );
@@ -479,6 +480,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			return sphereGeometryHiRes;
 		}
 
+		/* Lazy initialized low-res spehere geometry. */
 		function getSphereGeometryLowRes() {
 			if (sphereGeometryLowRes === undefined) {
 				sphereGeometryLowRes = new THREE.SphereGeometry( RADIUS,40,20 );
@@ -540,6 +542,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			console.log("Atmosphere initialized");
 		}
 
+		/* Initialize geometry required by data pillars. */
 		function buildDataPillars() {
 			pillarGeometry = new THREE.CubeGeometry(0.75, 0.75, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
 			for (var i = 0; i < pillarGeometry.vertices.length; i++) {
@@ -550,10 +553,19 @@ GLOBE.TYPES.Globe = function (cid) {
 			console.log("Data Pillars initialized.");
 		}
 
+		/* Add a data pillar at given geo-coordinates.
+		 *  lat - Latitude
+		 *  lng - Longitude
+		 *  factor - normalized size and color factor (0.0 - 1.0) 
+		 *  */
 		function addDataPillar(lat,lng,factor) {
 			return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
 		}
 
+		/* Add a data pillar for a given country.
+		 *  iso -  country iso code.
+		 *  factor - normalized size and color factor (0.0 - 1.0)
+		 *  */
 		function addCountryPillar(iso,factor) {
 			var p;
 			if (countryPillars[iso] !== undefined) {
@@ -568,6 +580,11 @@ GLOBE.TYPES.Globe = function (cid) {
 			return p;
 		}
 
+		/* Add a connection line netween two countries:
+		 *  from - iso country code of source country.
+		 *  to   - iso country code of destination country.
+		 *  intensity - thickness (1.0 is standard)
+		 *  */
 		function connectCountry(from,to,intensity) {
 			var f = GLOBE.GEO.lookup_geo_points(from)
 			var t = GLOBE.GEO.lookup_geo_points(to);
