@@ -1,4 +1,6 @@
 /* Namespace to be used: GLOBE */
+
+/* Initializations */
 var GLOBE = GLOBE || {
 	'CONFIGURATION': {
 		'browsers': {
@@ -24,9 +26,16 @@ var GLOBE = GLOBE || {
 				icon: 'img/third-party/fbicon.png'
 
 			},
-			'Google': {
+			'Twitter': {
+				url: "http://twitter.com/share?url=" + $(location).attr('href'),
+				icon: 'img/third-party/twicon.png'
+			},
+			'Google+ share': {
 				url: "https://plus.google.com/share?url="+ $(location).attr('href'),
 				icon: 'img/third-party/gpicon.png'
+			},
+			'Google +1': {
+				item: '<div class="g-plusone" data-size="standard" data-annotation="none"></div><script>(function() { var po = document.createElement("script"); po.type = "text/javascript"; po.async = true; po.src = "https://apis.google.com/js/platform.js"; var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(po, s); })();</script>'
 			}
 		}
 	},
@@ -90,17 +99,22 @@ var GLOBE = GLOBE || {
 			for (var i in GLOBE.CONFIGURATION.shareButtons) {
 				var o =GLOBE.CONFIGURATION.shareButtons[i];
 				var item = $('<div>');
-			
-				item.css('background-image',"url('" + o.icon +"')");
-				item.css('background-repeat','no-repeat');
-				item.css('background-position','left center');
+				if (o.item !== undefined) {
+					item = $(o.item);
+				} else {
+				
+					item.css('background-image',"url('" + o.icon +"')");
+					item.css('background-repeat','no-repeat');
+					item.css('background-position','left center');
+					item.attr('href',o.url);
+					item.click(function() {
+						window.open($(this).attr('href'),'_blank');
+					});
+				}
 				item.css('width','24px');
 				item.css('height','24px');
 				item.css('float','left');
-				item.attr('href',o.url);
-				item.click(function() {
-					window.open($(this).attr('href'),'_blank');
-				});
+				item.css('padding-left','5px');
 				item.appendTo(sbid);
 			}
 		}

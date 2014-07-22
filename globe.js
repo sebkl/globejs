@@ -640,7 +640,6 @@ GLOBE.TYPES.Globe = function (cid) {
 			scene.remove(con);
 		}
 
-
 		function clearConnections() {
 			for (var i = 0; i < lines.length; i ++) {
 				scene.remove(lines[i]);
@@ -649,8 +648,20 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function _setPillarData(factor) {
-			this.scale.z =-((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
+			var pillar = this;
 			this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
+			var tween = new TWEEN.Tween( { 
+						z: pillar.scale.z
+					} )
+					.to( {
+						z: -((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE)
+					}, 200 )
+					.easing( TWEEN.Easing.Linear.EaseNone )
+					.onUpdate( function () {
+						pillar.scale.z = this.z;
+						pillar.needsUpdate = true;
+					} );
+			tween.start();
 		}
 
 		function addPillar(lng,lat, size,color) {
@@ -689,7 +700,6 @@ GLOBE.TYPES.Globe = function (cid) {
 						pillar.scale.x = this.x;
 						pillar.scale.y = this.y;
 						pillar.needsUpdate = true;
-
 					} );
 
 			if (complete !== undefined) {
@@ -833,16 +843,16 @@ GLOBE.TYPES.Globe = function (cid) {
 			var pil = pillars;
 			pillars = [];
 			for (var i = 0; i < pil.length; i++) {
-				blendPillar(pil[i],1.0,0.0, function() {
-					scene.remove(pil[i]);
-					if (callback !== undefined && (i == (pil.length-1))) {
-						callback();
-					}
-				});
+				blendPillar(pil[i],1.0,0.0);
 			}
-			if ((pil.length == 0) && (callback !== undefined)) {
-				callback();
-			}
+			setTimeout(function() {
+				for (var p = 0; p < pil.length; p++) {
+					scene.remove(pil[p]);
+				}
+				if ((pil.length == 0) && (callback !== undefined)) {
+					callback();
+				}
+			},1000);
 		}
 
 		function onMouseInContainer(e) {
@@ -1105,6 +1115,10 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
+		function getHoveredCountry() {
+			return hovered_cc;
+		}
+
 		function getIntersects(event) {
 			event.preventDefault();
 			var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
@@ -1148,10 +1162,15 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		function moveToCountry(iso) {
 			var po = GLOBE.GEO.lookup_geo_points(iso);
-			var camt = convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(po[0]), degree_to_radius_latitude(po[1]),RADIUS*2));
+			return moveToPolar(po[0],po[1])
+		}
 
-			target.x = degree_to_radius_longitude(po[0]);
-			target.y = degree_to_radius_latitude(po[1]);
+		function moveToPolar(lon,lat) {
+			console.log("Moving to " + lon + "," + lat);
+			var camt = convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lon), degree_to_radius_latitude(lat),RADIUS*2));
+
+			target.x = degree_to_radius_longitude(lon);
+			target.y = degree_to_radius_latitude(lat);
 
 			camera.position = camt;
 			camera.lookAt(scene.position);
@@ -1579,7 +1598,6 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		};
 
-
 		/* Plug all together */
 		init();
 		buildParticles();
@@ -1599,6 +1617,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.addDataPillar = addDataPillar;
 		obj.addCountryPillar = addCountryPillar;
 		obj.moveToCountry = moveToCountry;
+		obj.moveToPolar = moveToPolar;
 		obj.setCountryColor = setCountryColor;
 		obj.unsetCountryColor = unsetCountryColor;
 		obj.clearCountryColors = clearCountryColors;
@@ -1622,6 +1641,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.setParticleSize = setParticleSize;
 		obj.setCountryLightning = setCountryLightning;
 		obj.getCountryLightning = getCountryLightning;
+		obj.getHoveredCountry = getHoveredCountry;
 		//obj.shaders = shaders; /* export for debuging purposes */
 
 		render();

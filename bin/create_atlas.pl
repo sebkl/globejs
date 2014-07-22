@@ -36,6 +36,9 @@ my %cIndexMap = (
 my $width = 4096; # Image fagment width
 my $height = 2048; # Image fragment height
 
+#my $width = 2048; # Image fagment width
+#my $height = 1024; # Image fragment height
+
 
 
 #my $width = 8192;

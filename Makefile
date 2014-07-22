@@ -53,5 +53,9 @@ edit:
 
 
 clean:
+	rm -rf $(DISTDIR)/examples $(DISTDIR)/globe.js
+	for e in `ls -1 example/ | xargs`; do make -C example/$$e clean; done;
+
+fullclean: clean
 	rm -rf $(DISTDIR)
 	for e in `ls -1 example/ | xargs`; do make -C example/$$e clean; done;

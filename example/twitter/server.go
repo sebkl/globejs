@@ -8,11 +8,11 @@ import (
 )
 
 func main() {
-	tstream,err := NewTwitterStream()
+	server := NewFrontend()
+	tstream,err := NewTwitterStream(server.BaseUrl())
 	if err != nil {
 		log.Fatal(err)
 	}
-	server := NewFrontend()
 	server.EnableFileServer("htdocs","p")
 	server.Redirect("/","/p/")
 	//server.ExposeMethods(tstream,"Next")
