@@ -1,2 +1,2 @@
-* FIX: Daylight effect .. use three.js lightning instead.
-* FIX: texture line at Long 0 is because of atlas.
+* Compute light vector based on day of year and day time.
+* convert perl scripts to go tools.

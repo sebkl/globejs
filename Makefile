@@ -1,5 +1,7 @@
 DISTDIR=HTDOCS
 EDITOR=editor
+GO=go run
+COMPILE_PIPE=| $(GO) bin/jscompilepipe.go 
 
 all: DIST EXAMPLE
 
@@ -41,7 +43,7 @@ $(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
 	cp img/map.png $@
 
 $(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js namespace.js
-	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
+	cat namespace.js $(DISTDIR)/lookup.js globe.js $(COMPILE_PIPE) > $@
 	#rm $(DISTDIR)/lookup.js
 
 test: EXAMPLE
@@ -49,8 +51,6 @@ test: EXAMPLE
 
 edit: 
 	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
-
-
 
 clean:
 	rm -rf $(DISTDIR)/examples $(DISTDIR)/globe.js
