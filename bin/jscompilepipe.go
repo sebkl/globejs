@@ -5,6 +5,7 @@ import (
 	"os"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	. "github.com/sebkl/gotojs"
 )
 
@@ -13,5 +14,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(Minify(bytes)))
+	fmt.Println(string(Minify(http.DefaultClient,bytes)))
 }
