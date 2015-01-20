@@ -34,7 +34,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		 *  y => -1 .. 1 (bottom to top)
 		 *  z => -1 .. 1 (back to front) */
 		var DEFAULT_LIGHT_VECTOR = new THREE.Vector3(-0.5,0.0,1.0); // front bottom (slight left)
-		var DEFAULT_LIGHT_COLOR = new THREE.Vector3(1.0,1.0,1.0);
+		var DEFAULT_LIGHT_COLOR = [255,255,255];//new THREE.Color(0xffffff);
 		var DEFAULT_BORDER_INTENSITY = 0.4;
 		var DEFAULT_COLOR_INTENSITY = 0.6;
 
@@ -67,9 +67,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		var particles; /* Particle geometry. */
 		var particle_count = 10000;
 		var particle_cursor = 0;
-		obj.particleSize = 20;		/* DAT-GUI */
+		obj.particleSize = 20;			/* DAT-GUI */
 		obj.particleLifetime = 200;		/* DAT-GUI */
-		obj.particleColor = [128,255,128 ];		/* DAT-GUI */
+		obj.particleColor = [128,255,128 ];	/* DAT-GUI */
 		obj.particleIntensity = 1.0;
 
 		/* Light and color settings */
@@ -78,10 +78,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.hoverColor = [ 255,128,128 ]; /* DAT-GUI */
 		obj.colorIntensity = DEFAULT_COLOR_INTENSITY; /* DAT-GUI */
 		obj.borderIntensity = DEFAULT_BORDER_INTENSITY; /* DAT_GUI */
-		var bgColor = new THREE.Color(0x000000);
-		var bColor = new THREE.Color(0xffffff);
-		var aColor = new THREE.Color(0x7f7fff);
-		var lightColor = DEFAULT_LIGHT_COLOR; /* City light color */
+		obj.bgColor = [ 0,0,0 ]; //new THREE.Color(0x000000);
+		obj.bColor = [255,255,255 ];//new THREE.Color(0xffffff);
+		obj.aColor = [128,128,255];//new THREE.Color(0x7f7fff);
+		obj.lightColor = DEFAULT_LIGHT_COLOR; /* City light color */
 		var lightMode = {
 			"MOUSE": 0,
 			"DEFAULT": 1,
@@ -113,13 +113,34 @@ GLOBE.TYPES.Globe = function (cid) {
 		var enabled = true; /* is globe enabled ? */
 		var overGlobe = false; /* is mouse over globe */
 		var overRenderer = true; /* is mouse over renderer */
+
+
+		/* Helper function to convert a color object */
+		function colorToVector(c) {
+			return new THREE.Vector3(c.r,c.g,c.b);
+		}
+
+		/* Helper function to convert a color object */
+		function colorToArrayColor(c) {
+			return [c.r *255,c.g *255,c.b *255];
+		}
+
+		/* Helper function to convert a color object */
+		function arrayColorToColor(c) {
+			return new THREE.Color(c[0]/256,c[1]/256,c[2]/256);
+		}
 				
-		function countryColorToVector(c,i) {
+		/* Helper function to convert a color object 
+		 * params:	c - 8bit Color values [ 255,255,255 ]
+		 * 		i - normalized alpha value (0 - 1)
+		 * */
+		function arrayColorToVector(c,i) {
 			return new THREE.Vector4(c[0]/256,c[1]/256,c[2]/256,i);
 		}
 
-		function particleColorToVector(c,i) {
-			return new THREE.Vector4(c[0]/256,c[1]/256,c[2]/256,i);
+		/* Helper function to convert a color object */
+		function arrayColorToVector3(c) {
+			return new THREE.Vector3(c[0]/256,c[1]/256,c[2]/256);
 		}
 
 		function applyDatGuiControlConfiguration(gui) {
@@ -129,7 +150,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			p.add(obj,'particleLifetime',1,1000);
 			p.addColor(obj,'particleColor').onChange(function(value) {
 				for (var i = 0; i < particle_count;i++) {
-					shaders['particle'].attributes.color.value[i] = particleColorToVector(value,1.0);
+					shaders['particle'].attributes.color.value[i] = arrayColorToVector(value,1.0);
 				}
 				//shaders['particle'].attributes.needsUpdate = true;
 			});
@@ -145,13 +166,26 @@ GLOBE.TYPES.Globe = function (cid) {
 				shaders['earth'].uniforms.needsUpdate = true;
 			});
 
-					c.addColor(obj,'hoverColor').onChange(function(value) { 
-				shaders['earth'].uniforms.selection.value = countryColorToVector(value,0.4);
+			c.addColor(obj,'bColor').onChange(function(val) {
+				obj.setBorderColor(arrayColorToColor(val));
+			});
+
+			c.addColor(obj,'hoverColor').onChange(function(value) { 
+				shaders['earth'].uniforms.selection.value = arrayColorToVector(value,0.4);
 				shaders['earth'].uniforms.needsUpdate = true;
 			});
 			c.add(obj,'clearCountryColors');
 
 			var e = g.addFolder('Earth');
+			e.addColor(obj,'lightColor').onChange(function(val) {
+				obj.setLightColor(arrayColorToColor(val));
+			});
+			e.addColor(obj,'aColor').onChange(function(val) {
+				obj.setAtmosphereColor(arrayColorToColor(val));
+			});
+			e.addColor(obj,'bgColor').onChange(function(val) {
+				obj.setBackgroundColor(arrayColorToColor(val));
+			});
 			obj.dayofyear = 1.0;
 			e.add(obj,'dayofyear',1.0,356.0).onFinishChange(function (value) {
 				shaders['earth'].uniforms.dayofyear.value = value; 
@@ -180,6 +214,8 @@ GLOBE.TYPES.Globe = function (cid) {
 
 			e.add(obj,'lightOn');
 			e.add(obj,'lightOut');
+			e.add(obj,'setBlackMode');
+			e.add(obj,'setWhiteMode');
 
 			var t = g.addFolder('Pillars');
 			t.add(obj,'clearPillars');
@@ -208,26 +244,35 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
+		/*
+		 * params:  color - THREE.Color()
+		 * */
 		function setBackgroundColor(color) {
-			bgColor = color;
-			renderer.setClearColor(bgColor, 1);
-			shaders['earth'].uniforms.bgcolor.value = new THREE.Vector3(bgColor.r,bgColor.g,bgColor.b);
-			shaders['atmosphere'].uniforms.bgcolor.value = new THREE.Vector3(bgColor.r,bgColor.g,bgColor.b);
+			obj.bgColor = colorToArrayColor(color);
+			renderer.setClearColor(color, 1);
+			shaders['earth'].uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
+			shaders['atmosphere'].uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
 			shaders['earth'].uniforms.needsUpdate = true;
 			shaders['atmosphere'].uniforms.needsUpdate = true;
 		}
 
+		/*
+		 * params:  color - THREE.Color()
+		 * */
 		function setAtmosphereColor(color) {
-			aColor = color;
-			shaders['atmosphere'].uniforms.acolor.value = new THREE.Vector3(aColor.r,aColor.g,aColor.b);
-			shaders['earth'].uniforms.acolor.value = new THREE.Vector3(aColor.r,aColor.g,aColor.b);
+			obj.aColor = colorToArrayColor(color);
+			shaders['atmosphere'].uniforms.acolor.value = arrayColorToVector3(obj.aColor);
+			shaders['earth'].uniforms.acolor.value = arrayColorToVector3(obj.aColor);
 			shaders['atmosphere'].uniforms.needsUpdate = true;
 			shaders['earth'].uniforms.needsUpdate = true;
 		}
 
+		/*
+		 * params:  color - THREE.Color()
+		 * */
 		function setBorderColor(color) {
-			bColor = color;
-			shaders['earth'].uniforms.bcolor.value = new THREE.Vector3(bColor.r,bColor.g,bColor.b);
+			obj.bColor = colorToArrayColor(color);
+			shaders['earth'].uniforms.bcolor.value = arrayColorToVector3(obj.bColor);
 			shaders['earth'].uniforms.needsUpdate = true;
 		}
 
@@ -428,7 +473,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				lifetimes[i] = 0;
 				sizes[i] = 0;
 				random[i] = 0.5;
-				color[i] = particleColorToVector(obj.particleColor,obj.particleIntensity);
+				color[i] = arrayColorToVector(obj.particleColor,obj.particleIntensity);
 				hf[i] = 1.0;
 			}
 
@@ -502,7 +547,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				random[i] = Math.random();
 
 				if (c !== undefined && c != null) {
-					color[i] = particleColorToVector(c,obj.particleIntensity);
+					color[i] = arrayColorToVector(c,obj.particleIntensity);
 				}
 
 				if (hf !== undefined && hf != null) {
@@ -878,8 +923,8 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function enableDaylight() {
-			shaders['earth'].uniforms.lightcolor.value = lightColor;
-			shaders['atmosphere'].uniforms.lightcolor.value = lightColor;
+			shaders['earth'].uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
+			shaders['atmosphere'].uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
 			shaders['atmosphere'].uniforms.needsUpdate = true;
 			shaders['earth'].uniforms.needsUpdate = true;
 		}
@@ -890,7 +935,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function setLightColor(col) {
-			lightColor = new THREE.Vector3(col.r,col.g,col.b);
+			obj.lightColor = colorToArrayColor(col);
 			if (isDaylightEnabled()) {
 				enableDaylight();
 			}
@@ -1047,7 +1092,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			renderer.setSize( width, height );                                                                                                
 			//renderer.setClearColorHex(0x000000, 0.0);
 			//renderer.setClearColor(0x000000, 0.0);
-			renderer.setClearColor(bgColor, 1.0);
+			renderer.setClearColor(arrayColorToColor(obj.bgColor), 1.0);
 			renderer.autoClear = false;
 			renderer.setBlending(THREE.AdditiveBlending);
 
@@ -1377,7 +1422,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					"selection" :{
 						type: "v4",
-						value:  countryColorToVector(obj.hoverColor,obj.colorIntensity)
+						value:  arrayColorToVector(obj.hoverColor,obj.colorIntensity)
 					},
 					"cintensity" :{
 						type: "f",
@@ -1389,7 +1434,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					"bcolor": {
 						type: "v3",
-						value: new THREE.Vector3(bColor.r,bColor.g,bColor.b)
+						value: arrayColorToVector3(obj.bColor)
 					},
 					"heightfactor" : {
 						type: "f",
@@ -1405,15 +1450,15 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					"lightcolor": {
 						type: "v3",
-						value: DEFAULT_LIGHT_COLOR
+						value: arrayColorToVector3(obj.lightColor)
 					},
 					"bgcolor":  {
 						type: "v3",
-						value: new THREE.Vector3(bgColor.r,bgColor.g,bgColor.b)
+						value: arrayColorToVector3(obj.bgColor)
 					},
 					"acolor":  {
 						type: "v3",
-						value: new THREE.Vector3(aColor.r,aColor.g,aColor.b)
+						value: arrayColorToVector3(obj.aColor)
 					}
 
 				},
@@ -1531,11 +1576,11 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					"bgcolor":  {
 						type: "v3",
-						value: new THREE.Vector3(bgColor.r,bgColor.g,bgColor.b)
+						value: arrayColorToVector3(obj.bgColor)
 					},
 					"acolor":  {
 						type: "v3",
-						value: new THREE.Vector3(aColor.r,aColor.g,aColor.b)
+						value: arrayColorToVector3(obj.aColor)
 					}
 
 				},
