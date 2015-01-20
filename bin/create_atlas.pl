@@ -5,12 +5,13 @@ my @textureConfig = (
 		r => "atlas/texture.png:r",
 		g => "atlas/texture.png:g",
 		b => "atlas/texture.png:b",
-		a => "atlas/heightmap.png:r"
+		a => "atlas/texture.png:a"
 	}
 	,{
-		#r => "atlas/countrymap.png:r",
+		#r => "atlas/countrymap.png:a",
 		g => "atlas/borders.png:r",
 		b => "atlas/city.png:r",
+		a => "atlas/heightmap.png:r"
 		#a => "atlas/mask.png:r"
 	}
 );
@@ -22,7 +23,6 @@ my @mapConfig = (
 	}
 );
 
-
 ##
 ## Some constant configurations.
 ##
@@ -33,19 +33,18 @@ my %cIndexMap = (
 	b => 2,
 	a => 3
 );
+
 my $width = 4096; # Image fagment width
 my $height = 2048; # Image fragment height
 
 #my $width = 2048; # Image fagment width
 #my $height = 1024; # Image fragment height
-
-
-
 #my $width = 8192;
 #my $height = 4096;
 #my $width = 1024;
 #my $height = 512;
 #shift(@textureConfig);
+#
 my $textureFilename= shift || "atlas.png";
 my $mapFilename = shift || "map.png";
 
@@ -72,10 +71,12 @@ sub buildImage($) {
 			unless (defined($files{$iname})) {
 				print STDERR "Reading new image file: ".$iname."\n";
 				my $nf = Image::Magick->new;
+				$nf->Set(alpha=>'On');
 				$nf->Read($iname);
-				print STDERR "Resizing image.\n";
 				$nf->Set(antialias=>$aa_param);
+				print STDERR "Resizing image.\n";
 				$nf->Sample(width=>$width,height=>$height);
+				$nf->Set(alpha=>'On');
 				$files{$iname} = $nf;
 	#			$nf->Write(filename=>$iname."_xxx.png");
 			}
@@ -99,7 +100,7 @@ sub buildImage($) {
 					my $imgString = $stc->{$ci};
 					my ($iname,$cii)  = split(/:/,$imgString);
 					my $img = $files{$iname};
-					my @vals = $img->GetPixel(x=>$x,y=>$y);
+					my @vals = $img->GetPixel(x=>$x,y=>$y,channel=>"ALL");
 					my $v = $vals[$cIndexMap{$cii}];
 					$pixel{$ci} = $v;
 				}

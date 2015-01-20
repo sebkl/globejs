@@ -43,11 +43,12 @@ $(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
 	cp img/map.png $@
 
 $(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js namespace.js
-	cat namespace.js $(DISTDIR)/lookup.js globe.js $(COMPILE_PIPE) > $@
+	#cat namespace.js $(DISTDIR)/lookup.js globe.js $(COMPILE_PIPE) > $@
+	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
 	#rm $(DISTDIR)/lookup.js
 
 test: EXAMPLE
-	cd $(DISTDIR)/examples/openflights && go run server.go
+	cd $(DISTDIR)/examples/basic && go run server.go
 
 edit: 
 	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html

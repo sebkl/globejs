@@ -1,2 +1,12 @@
 * Compute light vector based on day of year and day time.
+	-> see lightMode
 * convert perl scripts to go tools.
+* make globe responsive 
+	- gemoetry details
+	- texture resolution etc.
+
+* check setLightColor function (defaultLightIntensity is Vector not color)
+* Cleanup defaults
+* Cleanup Constants
+
+	
