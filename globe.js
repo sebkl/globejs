@@ -25,6 +25,8 @@ GLOBE.TYPES.Globe = function (cid) {
 		var ZOOM_CLICK_STEP = ZOOM_SPEED*2;
 		var PILLAR_FULLSIZE = 100;
 		var NO_COUNTRY = '0';
+		var COLOR_BLACK = new THREE.Color(0x000000);
+		var COLOR_WHITE = new THREE.Color(0xffffff);
 		var LINE_POINTS = 50; /* Amount of points used per line curve. */
 		var LINE_HFAC = 0.2; /* Percentage of RADIUS the line curve will be heigh. */
 		var LINE_COLOR  = 0x8888ff;
@@ -170,8 +172,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			});
 
 			c.addColor(obj,'hoverColor').onChange(function(value) { 
-				shaders['earth'].uniforms.selection.value = arrayColorToVector(value,0.4);
-				shaders['earth'].uniforms.needsUpdate = true;
+				obj.setCountryHoverColor(arrayColorToColor(value));
 			});
 			c.add(obj,'clearCountryColors');
 
@@ -255,6 +256,12 @@ GLOBE.TYPES.Globe = function (cid) {
 			shaders['atmosphere'].uniforms.needsUpdate = true;
 		}
 
+		function setCountryHoverColor(color) {
+			obj.hoverColor = colorToArrayColor(color);
+			shaders['earth'].uniforms.selection.value = arrayColorToVector(obj.hoverColor,0.4);
+			shaders['earth'].uniforms.needsUpdate = true;
+		}
+
 		/*
 		 * params:  color - THREE.Color()
 		 * */
@@ -293,23 +300,34 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function setWhiteMode() {
-			setBorderColor(new THREE.Color(0x000000));
-			setBackgroundColor(new THREE.Color(0xffffff));
+			setBorderColor(COLOR_BLACK);
+			setBackgroundColor(COLOR_WHITE);
 			setAtmosphereColor(new THREE.Color(0xaaaaaa));
 			setBorderIntensity(1.0);
 			setColorIntensity(0.0);
 			setCountryColorIntensity(1.0);
+
+			renderer.setClearColor(COLOR_WHITE, 1.0);
+			renderer.clear();
 		}
 
 		function setBlackMode() {
-			setBorderColor(new THREE.Color(0xffffff));
-			setBackgroundColor(new THREE.Color(0x000000));
+			setBorderColor(COLOR_WHITE);
+			setBackgroundColor(COLOR_BLACK);
 			setAtmosphereColor(new THREE.Color(0x7f7fff));
 			setBorderIntensity(DEFAULT_BORDER_INTENSITY);
 			setColorIntensity(1.0);
 			setCountryColorIntensity(DEFAULT_COLOR_INTENSITY);
+
+			renderer.setClearColor(COLOR_BLACK, 1.0);
+			renderer.clear();
 		}
 
+		/* Sets country color for list of iso codes:
+		 * params:	iso - array of iso codes [ 'DE','ES', ... ]
+		 * 		color - THREE.Color()
+		 * 		index - country index id. Only used if iso code not et mapped.
+		 * */
 		function _setCountryColor(iso,color,index) {
 			var ma;
 
@@ -356,9 +374,6 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
-		function switchCountryColorSet(list, color) {
-			_setCountryColor(list,color);
-		}
 
 		function _switchCountryColor(idx) {
 			var map = shaders['earth'].uniforms.countrydata.value;
@@ -1805,10 +1820,12 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.clearCountryColors = clearCountryColors;
 		obj.immediateClearCountryColors = immediateClearCountryColors;
 		obj.applyDatGuiControlConfiguration = applyDatGuiControlConfiguration;
-		obj.switchCountryColorSet = switchCountryColorSet;
+		obj.switchCountryColorSet = _setCountryColor(list,color);
 		obj.setHoverCountry = setHoverCountry;
+		obj.setCountryHoverColor = setCountryHoverColor;
 		obj.stop = stop;
 		obj.start = start;
+		obj.isEnabled = function () { return enabled; }
 		obj.getContainerId = getContainerId;
 		obj.connectCountry = connectCountry;
 		obj.connectPolar = connectPolar;
