@@ -36,7 +36,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		 *  y => -1 .. 1 (bottom to top)
 		 *  z => -1 .. 1 (back to front) */
 		var DEFAULT_LIGHT_VECTOR = new THREE.Vector3(-0.5,0.0,1.0); // front bottom (slight left)
-		var DEFAULT_LIGHT_COLOR = [255,255,255];//new THREE.Color(0xffffff);
+		var DEFAULT_LIGHT_COLOR = [255,255,128];//new THREE.Color(0xffffff);
 		var DEFAULT_BORDER_INTENSITY = 0.4;
 		var DEFAULT_COLOR_INTENSITY = 0.6;
 
@@ -111,7 +111,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var sphereGeometryLowRes;
 		var atmosphere;
 
-		var enabled = true; /* is globe enabled ? */
+		var enabled = false; /* is globe enabled ? */
 		var overGlobe = false; /* is mouse over globe */
 		var overRenderer = true; /* is mouse over renderer */
 
@@ -224,23 +224,11 @@ GLOBE.TYPES.Globe = function (cid) {
 			l.add(obj,'clearConnections');
 		}
 
-
 		function unsetCountryColor(opco) {
 			if (opco === undefined || opco == "ALL") {
-				console.log("Clearing all country colors.");
 				this.clearCountryColors();
 			} else {
 				this.setCountryColor(opco,new THREE.Color(0x000000));
-			}
-		}
-
-
-		function setCountryColor(iso,color) {
-			try {
-				console.log("Setting Globe country color: " + color.r + " " + color.g + " " + color.b);
-				_setCountryColor(iso,color);
-			} catch (err) {
-				console.log("Cannot set Color for " + iso + " " + err);
 			}
 		}
 
@@ -306,6 +294,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			setBorderIntensity(1.0);
 			setColorIntensity(0.0);
 			setCountryColorIntensity(1.0);
+			setLightColor(new THREE.Color(0x555555));
 
 			renderer.setClearColor(COLOR_WHITE, 1.0);
 			renderer.clear();
@@ -318,6 +307,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			setBorderIntensity(DEFAULT_BORDER_INTENSITY);
 			setColorIntensity(1.0);
 			setCountryColorIntensity(DEFAULT_COLOR_INTENSITY);
+			setLightColor(DEFAULT_LIGHT_COLOR);
 
 			renderer.setClearColor(COLOR_BLACK, 1.0);
 			renderer.clear();
@@ -326,9 +316,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		/* Sets country color for list of iso codes:
 		 * params:	iso - array of iso codes [ 'DE','ES', ... ]
 		 * 		color - THREE.Color()
+		 * 		alpha - alpha value 0 - 1
 		 * 		index - country index id. Only used if iso code not et mapped.
 		 * */
-		function _setCountryColor(iso,color,index) {
+		function setCountryColor(iso,color,alpha,index) {
 			var ma;
 
 			if (iso instanceof Array) {
@@ -341,6 +332,10 @@ GLOBE.TYPES.Globe = function (cid) {
 				index = 0;
 			}
 
+			if (alpha === undefined) {
+				alpha = 1.0;
+			}
+
 			var shader = shaders['earth'].uniforms.countrydata.value;
 
 			for (var x = 0; x < ma.length;x++) {
@@ -348,9 +343,10 @@ GLOBE.TYPES.Globe = function (cid) {
 					var c = GLOBE.GEO.country_to_index(ma[x].toUpperCase());
 					var o = index * 256;
 					var i = c + o;
-					shader.image.data[ i * 3] = color.r * 255;
-					shader.image.data[ i * 3 + 1] = color.g * 255;
-					shader.image.data[ i * 3 + 2] = color.b * 255;
+					shader.image.data[ i * 4 + 0] = color.r * 255;
+					shader.image.data[ i * 4 + 1] = color.g * 255;
+					shader.image.data[ i * 4 + 2] = color.b * 255;
+					shader.image.data[ i * 4 + 3] = alpha * 255;
 					_switchCountryColor(c);
 				} catch (err) {
 					console.log("Unknown country: " + ma[x] + ": "+ err);
@@ -367,13 +363,14 @@ GLOBE.TYPES.Globe = function (cid) {
 		function clearCountryColors() {
 			var shader = shaders['earth'].uniforms.countrydata.value;
 			for (var i = 0; i < 256; i ++) {
-				shader.image.data[i * 3 + 0] = 0;
-				shader.image.data[i * 3 + 1] = 0;
-				shader.image.data[i * 3 + 2] = 0;
+				/*
+				shader.image.data[i * 4 + 0] = 0;
+				shader.image.data[i * 4 + 1] = 0;
+				shader.image.data[i * 4 + 2] = 0; */
+				shader.image.data[i * 4 + 3] = 0;
 				_switchCountryColor(i);
 			}
 		}
-
 
 		function _switchCountryColor(idx) {
 			var map = shaders['earth'].uniforms.countrydata.value;
@@ -383,48 +380,52 @@ GLOBE.TYPES.Globe = function (cid) {
 				delete countryTweenMap[idx];
 			}
 
-			if ( 	map.image.data[ (256 + idx) * 3 + 0] == map.image.data[ (idx) * 3 + 0] &&
-				map.image.data[ (256 + idx) * 3 + 1] == map.image.data[ (idx) * 3 + 1] &&
-				map.image.data[ (256 + idx) * 3 + 2] == map.image.data[ (idx) * 3 + 2]	) {
+			if ( 	map.image.data[ (256 + idx) * 4 + 0] == map.image.data[ (idx) * 4 + 0] &&
+				map.image.data[ (256 + idx) * 4 + 1] == map.image.data[ (idx) * 4 + 1] &&
+				map.image.data[ (256 + idx) * 4 + 2] == map.image.data[ (idx) * 4 + 2] &&
+				map.image.data[ (256 + idx) * 4 + 3] == map.image.data[ (idx) * 4 + 3]) {
 				return;
 			}
 
 			var tween = new TWEEN.Tween( { 
-				r: map.image.data[ (256 + idx) * 3 + 0],
-				g: map.image.data[ (256 + idx) * 3 + 1],
-				b: map.image.data[ (256 + idx) * 3 + 2]
+				r: map.image.data[ (256 + idx) * 4 + 0],
+				g: map.image.data[ (256 + idx) * 4 + 1],
+				b: map.image.data[ (256 + idx) * 4 + 2],
+				a: map.image.data[ (256 + idx) * 4 + 3]
 			}).to ({
-				r: map.image.data[ (idx) * 3 + 0],
-				g: map.image.data[ (idx) * 3 + 1],
-				b: map.image.data[ (idx) * 3 + 2]
+				r: map.image.data[ (idx) * 4 + 0],
+				g: map.image.data[ (idx) * 4 + 1],
+				b: map.image.data[ (idx) * 4 + 2],
+				a: map.image.data[ (idx) * 4 + 3]
 			},500).onComplete(function() {
 				delete countryTweenMap[idx];
 			}).onUpdate( function() {
-				map.image.data[ (256 + idx) * 3 + 0] = this.r;
-				map.image.data[ (256 + idx) * 3 + 1] = this.g;
-				map.image.data[ (256 + idx) * 3 + 2] = this.b;
+				map.image.data[ (256 + idx) * 4 + 0] = this.r;
+				map.image.data[ (256 + idx) * 4 + 1] = this.g;
+				map.image.data[ (256 + idx) * 4 + 2] = this.b;
+				map.image.data[ (256 + idx) * 4 + 3] = this.a;
 				map.needsUpdate = true;
 			}).easing( TWEEN.Easing.Linear.EaseNone )
 			.start();
 			countryTweenMap[idx] = tween;
 		}
 
-		function setCountryLightning(opco,color) {
-			_setCountryColor(opco,color,1);
-		}
-
-		function getCountryLightning(opco) {
-			var map = shaders['earth'].uniforms.countrydata.value;
-			return new THREE.Color(
-				map.image.data[ (256 + idx) * 3 + 0]/255,
-				map.image.data[ (256 + idx) * 3 + 1]/255,
-				map.image.data[ (256 + idx) * 3 + 2]/255
-			);
-		}
-
 		function createCountryDataTexture() {
-			var text = THREE.ImageUtils.generateDataTexture(256,2,new THREE.Color(0x000000));
+			//var text = THREE.ImageUtils.generateDataTexture(256,2,new THREE.Color(0x000000));
 			//var text = new THREE.DataTexture( a, 256, 2, THREE.RGBFormat );
+			var width = 256;
+			var height = 2;
+			var size = width * height;
+			var data = new Uint8Array( 4 * size );
+
+			for ( var i = 0; i < size; i ++ ) {
+				data[ i * 4 + 0 ] = 0;
+				data[ i * 4 + 1 ] = 0;
+				data[ i * 4 + 2 ] = 0;
+				data[ i * 4 + 3 ] = 0;
+			}
+
+			var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
 			text.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
 			text.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
 			//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
@@ -1535,12 +1536,12 @@ GLOBE.TYPES.Globe = function (cid) {
 								'float cc = float(cidx) / par;',
 								'if (cc > 0.0) {',
 									'vec2 datapos = vec2(cc,0.0);',
-									'vec3 col = texture2D(countrydata,datapos).xyz;',
-									'ccol = vec4(col,cintensity*calpha);',
+									'vec4 col = texture2D(countrydata,datapos);',
+									'ccol = vec4(col.xyz,calpha*col.w);',
 								'}',
 							  '}',
 
-							  'vec3 city_col = vec3(lightcolor.xy,lightcolor.z * 0.5);',
+							  'vec3 city_col = lightcolor;',
 							  'float city_fac = 0.0;',
 							  'float day_factor = 1.0;',
 
@@ -1569,8 +1570,10 @@ GLOBE.TYPES.Globe = function (cid) {
 
 							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);', /* background color */
 							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);', /* background color */
-							  'if (ccol.r > 0.2 || ccol.g > 0.2 || ccol.b > 0.2) {',
-							  	'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w * cintensity * 2.0),diffuse.a);', /* Country Color */
+							  //'if (ccol.r > 0.2 || ccol.g > 0.2 || ccol.b > 0.2) {',
+							  'if (ccol.w > 0.0) {',
+							  	//'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w * cintensity * 2.0),diffuse.a);', /* Country Color */
+							  	'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w),diffuse.a);', /* Country Color */
 							  '}',
 							  'diffuse = vec4(mix(diffuse.xyz,bcolor,(texture2D(texture,vUv2).y * bintensity)),1.0);', /* Border Color */
 							  'diffuse = vec4(mix(diffuse.xyz,city_col,city_fac),diffuse.a);', /* City Color */
@@ -1820,7 +1823,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.clearCountryColors = clearCountryColors;
 		obj.immediateClearCountryColors = immediateClearCountryColors;
 		obj.applyDatGuiControlConfiguration = applyDatGuiControlConfiguration;
-		obj.switchCountryColorSet = _setCountryColor(list,color);
+		obj.switchCountryColorSet = setCountryColor;
 		obj.setHoverCountry = setHoverCountry;
 		obj.setCountryHoverColor = setCountryHoverColor;
 		obj.stop = stop;
@@ -1838,8 +1841,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.enableDaylight = enableDaylight;
 		obj.disableDaylight = disableDaylight;
 		obj.setParticleSize = setParticleSize;
-		obj.setCountryLightning = setCountryLightning;
-		obj.getCountryLightning = getCountryLightning;
 		obj.getHoveredCountry = getHoveredCountry;
 		//obj.shaders = shaders; /* export for debuging purposes */
 

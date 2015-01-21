@@ -86,7 +86,7 @@ function Next() {
 			}
 			for (var opco in map) {
 				var val = map[opco]/max;
-				globe.setCountryLightning(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
+				globe.setCountryColor(opco,new THREE.Color(val*lc.r,val*lc.g,val*lc.b));
 			}
 			callcount++;
 			endcall = new Date().getTime()
