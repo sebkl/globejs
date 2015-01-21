@@ -49,7 +49,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var cmap_url = 'img/cmap.png';
 
 		/* Camera moving : */
-		var curZoomSpeed = 0;
 		var vector = THREE.Vector3();
 		var mouse = 		{ x: 0, y: 0 };
 		var mouseOnDown = 	{ x: 0, y: 0, country: 0 };                                                                                                   
@@ -57,7 +56,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var target = 		{ x: Math.PI*3/2, y: Math.PI / 6.0 };
 		var targetOnDown = 	{ x: 0, y: 0 };
 		var distance = 100000;
-		var distanceTarget = 100000;                                                                                                             
+		obj.distanceTarget = 100000;                                                                                                             
 		var tic = 0;
 		var mouse_polar;
 		var hovered_cc; /* country iso code that is currently hovered by the nouse . */
@@ -478,17 +477,19 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 
 			var material = new THREE.ShaderMaterial ( {
-					uniforms: shader.uniforms,
-					attributes: shader.attributes,
-					vertexShader: shader.vertexShader,
-					fragmentShader: shader.fragmentShader,
-					transparent: true,
-					blending: THREE.AdditiveBlending,
-					//depthTest: true
-					depthTest: true,
-					wireframe: true,
-					depthWrite: false //Magic setting to make particles not clipping ;)
-
+				uniforms: shader.uniforms,
+				attributes: shader.attributes,
+				vertexShader: shader.vertexShader,
+				fragmentShader: shader.fragmentShader,
+				transparent: true,
+				blending: THREE.AdditiveBlending,
+				/*blending: THREE.CustomBlending,
+			    	blendSrc: THREE.OneMinusDstColorFactor,
+				blendDst: THREE.SrcAlphaFactor,
+				blendEquation: THREE.AddEquation, */
+				depthTest: true,
+				wireframe: true,
+				depthWrite: false //Magic setting to make particles not clipping ;)
 			});
 
 			particleSystem = new THREE.ParticleSystem(
@@ -1106,10 +1107,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function render() {
-			zoom(curZoomSpeed);
+			zoom(0);
 			rotation.x += (target.x - rotation.x) * 0.1;
 			rotation.y += (target.y - rotation.y) * 0.1;
-			distance += (distanceTarget - distance) * 0.3;
+			distance += (obj.distanceTarget - distance) * 0.3;
 			camera.position.x = distance * Math.sin(rotation.x) * Math.cos(rotation.y);
 			camera.position.y = distance * Math.sin(rotation.y);
 			camera.position.z = distance * Math.cos(rotation.x) * Math.cos(rotation.y);
@@ -1143,11 +1144,11 @@ GLOBE.TYPES.Globe = function (cid) {
 		/* Zoom/Scale globe and atmosphere within given boundaries. 
 		 * This is called for every frame render. */
 		function zoom(delta) {
-			distanceTarget -= delta;
+			obj.distanceTarget -= delta;
 			var min = RADIUS * 1.1;
 			var max = RADIUS * 5;
-			distanceTarget = distanceTarget > max ? max : distanceTarget;
-			distanceTarget = distanceTarget < min ? min : distanceTarget;
+			obj.distanceTarget = obj.distanceTarget > max ? max : obj.distanceTarget;
+			obj.distanceTarget = obj.distanceTarget < min ? min : obj.distanceTarget;
 
 			// scale atmosphere according to zoom level. This makes atmosphere more realistic in deep zoom mode.
 			var scaleFactor = 1.0 - ((distance - min) / (max-min) );
@@ -1746,7 +1747,7 @@ GLOBE.TYPES.Globe = function (cid) {
 						//'float d = texture2D( texture, gl_PointCoord ).a;',
 						//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
 
-						'float d = texture2D( texture, gl_PointCoord ).r ;',
+						'float d = texture2D( texture, gl_PointCoord ).w ;',
 						'd = d * d;',
 						//'float d = 1.0;',
 						/*
