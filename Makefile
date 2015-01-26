@@ -15,11 +15,11 @@ EXAMPLE: DIST
 	for e in `ls -1 example/ | xargs`; do cp -r $(DISTDIR)/globe.js $(DISTDIR)/examples/$$e/htdocs/; done;
 
 
-$(DISTDIR)/third-party:
+$(DISTDIR)/third-party: $(DISTDIR)
 	cp -r third-party $@
 
-$(DISTDIR)/lookup.js: $(DISTDIR)/img/flags
-	bin/create_lookupmap.pl $@ $(DISTDIR)/img/flags
+$(DISTDIR)/lookup.js: $(DISTDIR)
+	bin/create_lookupmap.pl $@ 
 
 $(DISTDIR):
 	mkdir -p $@
@@ -28,21 +28,29 @@ $(DISTDIR)/img: $(DISTDIR)
 	mkdir -p $@
 	cp -r img/* $@/
 
-$(DISTDIR)/img/flags: $(DISTDIR)/img
-	mkdir -p $@
+$(DISTDIR)/img/flags:
+	cp -r atlas/flags $@
 
 atlas: img/atlas.png
+
+flagatlas: img/flagatlas.png
 
 img/atlas.png:
 	bin/create_atlas.pl $@ img/cmap.png
 
+img/flagatlas.png:
+	$(GO) bin/flagatlas.go atlas/flags countrydata/country_map.json $@
+
 $(DISTDIR)/img/atlas.png: $(DISTDIR)/img img/atlas.png
 	cp img/atlas.png $@
+
+$(DISTDIR)/img/flagatlas.png: $(DISTDIR)/img img/flagatlas.png
+	cp img/flagatlas.png $@
 
 $(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
 	cp img/map.png $@
 
-$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/atlas.png globe.js namespace.js
+$(DISTDIR)/globe.js: $(DISTDIR)/lookup.js $(DISTDIR)/img/flags $(DISTDIR)/img/atlas.png $(DISTDIR)/img/flagatlas.png globe.js namespace.js
 	#cat namespace.js $(DISTDIR)/lookup.js globe.js $(COMPILE_PIPE) > $@
 	cat namespace.js $(DISTDIR)/lookup.js globe.js > $@
 	#rm $(DISTDIR)/lookup.js
@@ -55,6 +63,7 @@ edit:
 
 clean:
 	rm -rf $(DISTDIR)/examples $(DISTDIR)/globe.js
+	rm -f img/flagatlas.png
 	for e in `ls -1 example/ | xargs`; do make -C example/$$e clean; done;
 
 fullclean: clean

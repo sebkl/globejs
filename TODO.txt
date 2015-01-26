@@ -4,9 +4,5 @@
 * make globe responsive 
 	- gemoetry details
 	- texture resolution etc.
-
-* check setLightColor function (defaultLightIntensity is Vector not color)
 * Cleanup defaults
 * Cleanup Constants
-
-	
