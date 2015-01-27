@@ -6,3 +6,4 @@
 	- texture resolution etc.
 * Cleanup defaults
 * Cleanup Constants
+* convert sphere geometry to rectangle
