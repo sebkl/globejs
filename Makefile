@@ -64,7 +64,7 @@ edit:
 	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
 
 clean:
-	rm -rf $(DISTDIR)/examples $(DISTDIR)/globe.js
+	rm -rf $(DISTDIR)/examples $(DISTDIR)/globe.js $(DISTDIR)/flags.css
 	rm -f img/flagatlas.png
 	for e in `ls -1 example/ | xargs`; do make -C example/$$e clean; done;
 

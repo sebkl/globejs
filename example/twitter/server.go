@@ -8,17 +8,16 @@ import (
 )
 
 func main() {
-	server := NewFrontend()
-	tstream,err := NewTwitterStream(server.BaseUrl())
+	server := NewContainer()
+	tstream, err := NewTwitterStream(server.BaseUrl())
 	if err != nil {
 		log.Fatal(err)
 	}
-	server.EnableFileServer("htdocs","p")
-	server.Redirect("/","/p/")
+	server.EnableFileServer("htdocs", "p")
+	server.Redirect("/", "/p/")
 	//server.ExposeMethods(tstream,"Next")
-	server.ExposeInterface(tstream,"Tweets")
+	server.ExposeInterface(tstream, "Tweets")
 	server.ExposeYourself()
 
 	log.Fatal(server.Start(":8888"))
 }
-
