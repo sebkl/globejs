@@ -1,5 +1,12 @@
 /**
  * @constructor
+ *
+ * The given container may have the following attributes:
+ *
+ *  prefix - relative or absolute path to the globe location:
+ *  			Example: <div id="container" prefix="globe/"/>
+ *  			Which signals the globe to load textures from "globe/gen/" instead of "gen/"
+ *
  */
 GLOBE.TYPES.Globe = function (cid) {
 	try {
@@ -47,8 +54,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		var countryTweenMap= {}
 
 		/* texture URLs */
-		var atlas_url = 'img/atlas.png';
-		var cmap_url = 'img/cmap.png';
+		obj.prefix=$(cid).attr('prefix');
+		if (!obj.prefix) { obj.prefix = ""; }
+		var atlas_url = obj.prefix + 'gen/atlas.png';
+		var cmap_url = obj.prefix + 'img/cmap.png';
 
 		/* Camera moving : */
 		var vector = THREE.Vector3();
@@ -1644,7 +1653,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					texture: { 
 						type: 't', 
-						value: THREE.ImageUtils.loadTexture( 'img/particle.png' ) 
+						value: THREE.ImageUtils.loadTexture( obj.prefix + 'img/particle.png' ) 
 					},
 					randomu: {
 						type: 'f',

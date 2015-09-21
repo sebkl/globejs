@@ -23,16 +23,16 @@ var GLOBE = GLOBE || {
 		'shareButtons': {
 			'Facebook': {
 				url:'https://www.facebook.com/sharer/sharer.php?u=' + $(location).attr('href'),
-				icon: 'img/third-party/fbicon.png'
+				icon: 'third-party/img/fbicon.png'
 
 			},
 			'Twitter': {
 				url: "http://twitter.com/share?url=" + $(location).attr('href'),
-				icon: 'img/third-party/twicon.png'
+				icon: 'third-party/img/twicon.png'
 			},
 			'Google+ share': {
 				url: "https://plus.google.com/share?url="+ $(location).attr('href'),
-				icon: 'img/third-party/gpicon.png'
+				icon: 'third-party/img/gpicon.png'
 			},
 			'Google +1': {
 				item: '<div class="g-plusone" data-size="standard" data-annotation="none"></div><script>(function() { var po = document.createElement("script"); po.type = "text/javascript"; po.async = true; po.src = "https://apis.google.com/js/platform.js"; var s = document.getElementsByTagName("script")[0]; s.parentNode.insertBefore(po, s); })();</script>'
