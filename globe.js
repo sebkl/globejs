@@ -81,6 +81,8 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.particleLifetime = 200;		/* DAT-GUI */
 		obj.particleColor = [128,255,128 ];	/* DAT-GUI */
 		obj.particleIntensity = 1.0;
+		obj.particleBlending = THREE.AdditiveBlending;
+		obj.particleColorFilter = function(x) { return x; }
 
 		/* Light and color settings */
 		obj.brightness = 1.0; 	/* DAT_GUI earth uniform */
@@ -139,6 +141,15 @@ GLOBE.TYPES.Globe = function (cid) {
 		function arrayColorToColor(c) {
 			return new THREE.Color(c[0]/256,c[1]/256,c[2]/256);
 		}
+
+		/* Helper function to invert a color object */
+		function invertColor(c) {
+			if (Array.isArray(c)) {
+				return [ 255 - c[0], 255 - c[1], 255 - c[2] ];
+			} else {
+				return new THREE.Color( 1.0 - c.r, 1.0 -c.g, 1.0 -c.b );
+			}
+		}
 				
 		/* Helper function to convert a color object 
 		 * params:	c - 8bit Color values [ 255,255,255 ]
@@ -160,7 +171,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			p.add(obj,'particleLifetime',1,1000);
 			p.addColor(obj,'particleColor').onChange(function(value) {
 				for (var i = 0; i < particle_count;i++) {
-					shaders['particle'].attributes.color.value[i] = arrayColorToVector(value,1.0);
+					shaders['particle'].attributes.color.value[i] = arrayColorToVector(obj.particleColorFilter(value),1.0);
 				}
 				//shaders['particle'].attributes.needsUpdate = true;
 			});
@@ -297,6 +308,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		}
 
 		function setWhiteMode() {
+			obj.particleColorFilter = invertColor;
+			obj.particleBlending = THREE.SubtractiveBlending;
+
 			setBorderColor(COLOR_BLACK);
 			setBackgroundColor(COLOR_WHITE);
 			setAtmosphereColor(new THREE.Color(0xaaaaaa));
@@ -305,11 +319,15 @@ GLOBE.TYPES.Globe = function (cid) {
 			setCountryColorIntensity(1.0);
 			setLightColor(new THREE.Color(0x555555));
 
+			buildParticles();
 			renderer.setClearColor(COLOR_WHITE, 1.0);
 			renderer.clear();
 		}
 
 		function setBlackMode() {
+			obj.particleColorFilter = function(d) {return d; }
+			obj.particleBlending = THREE.AdditiveBlending;
+
 			setBorderColor(COLOR_WHITE);
 			setBackgroundColor(COLOR_BLACK);
 			setAtmosphereColor(new THREE.Color(0x7f7fff));
@@ -318,6 +336,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			setCountryColorIntensity(DEFAULT_COLOR_INTENSITY);
 			setLightColor(DEFAULT_LIGHT_COLOR);
 
+			buildParticles();
 			renderer.setClearColor(COLOR_BLACK, 1.0);
 			renderer.clear();
 		}
@@ -497,7 +516,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				lifetimes[i] = 0;
 				sizes[i] = 0;
 				random[i] = 0.5;
-				color[i] = arrayColorToVector(obj.particleColor,obj.particleIntensity);
+				color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
 				hf[i] = 1.0;
 			}
 
@@ -507,11 +526,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				vertexShader: shader.vertexShader,
 				fragmentShader: shader.fragmentShader,
 				transparent: true,
-				blending: THREE.AdditiveBlending,
-				/*blending: THREE.CustomBlending,
-			    	blendSrc: THREE.OneMinusDstColorFactor,
-				blendDst: THREE.SrcAlphaFactor,
-				blendEquation: THREE.AddEquation, */
+				blending: obj.particleBlending,
 				depthTest: true,
 				wireframe: true,
 				depthWrite: false //Magic setting to make particles not clipping ;)
@@ -573,7 +588,7 @@ GLOBE.TYPES.Globe = function (cid) {
 				random[i] = Math.random();
 
 				if (c !== undefined && c != null) {
-					color[i] = arrayColorToVector(c,obj.particleIntensity);
+					color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
 				}
 
 				if (hf !== undefined && hf != null) {
@@ -1775,7 +1790,6 @@ GLOBE.TYPES.Globe = function (cid) {
 						//'gl_FragColor = vec4(d * color.xyz,color.w - (dage*0.5));',
 
 						'float d = texture2D( texture, gl_PointCoord ).w ;',
-						'd = d * d;',
 						//'float d = 1.0;',
 						/*
 						"vec2 vUv = gl_PointCoord;",
@@ -1791,7 +1805,8 @@ GLOBE.TYPES.Globe = function (cid) {
 						"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
 						"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
 						*/
-						'gl_FragColor = vec4(dage * d * col.xyz,d * col.w);',
+						'gl_FragColor = vec4(dage * d * d * col.xyz,d);',
+						//'gl_FragColor = vec4(dage * d * d * col.xyz,d * col.w);',
 					
 					'}'
 				].join('\n')
