@@ -118,14 +118,20 @@ var GLOBE = GLOBE || {
 				item.appendTo(sbid);
 			}
 		},
-		'createFlagBox' function(id) {
-			var s;
-			if (Number(id) == id) {
-				s = "CID_" + id;
+		'createFlagBox': function(id) {
+			var ret =  $('<div>');
+			if (id === undefined) {
+				$(document).bind("country:hover", function(e,iso) {
+					ret.removeClass();
+					ret.addClass("flag_" + iso);
+				})
+				ret.addClass("flag_undefined");
+			} else if (Number(id) == id) {
+				ret.addClass("CID_" + id);
 			} else {
-				s = "flag_" + id.toUpperCase();
+				ret.addClass("flag_" + id.toUpperCase());
 			}
-			return $('<div>').addClass(s);
+			return ret;
 		}
 	}
 };

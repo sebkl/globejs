@@ -88,7 +88,7 @@ func main() {
 	}
 
 	//Output css
-	outcss := ""
+	outcss := ".flag_undefined { background: transparent; width: 160px; height: 80px; }\n"
 
 	//Generate output image
 	sibounds := imagemap["DE"].Bounds()
