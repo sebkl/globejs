@@ -117,6 +117,15 @@ var GLOBE = GLOBE || {
 				item.css('padding-left','5px');
 				item.appendTo(sbid);
 			}
+		},
+		'createFlagBox' function(id) {
+			var s;
+			if (Number(id) == id) {
+				s = "CID_" + id;
+			} else {
+				s = "flag_" + id.toUpperCase();
+			}
+			return $('<div>').addClass(s);
 		}
 	}
 };
