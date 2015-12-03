@@ -102,6 +102,8 @@ GLOBE.TYPES.Globe = function (cid) {
 			"current": 0
 		};
 
+		obj.rotSpeedFac = 1.0;
+
 		/* Variable display objects */
 		var pillars = [];
 		var countryPillars = {};
@@ -250,6 +252,11 @@ GLOBE.TYPES.Globe = function (cid) {
 			} else {
 				this.setCountryColor(opco,new THREE.Color(0x000000));
 			}
+		}
+
+
+		function setRotationSpeed(fac) {
+			obj.rotSpeedFac = fac;
 		}
 
 		/*
@@ -1148,8 +1155,8 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		function render() {
 			zoom(0);
-			rotation.x += (target.x - rotation.x) * 0.1;
-			rotation.y += (target.y - rotation.y) * 0.1;
+			rotation.x += (target.x - rotation.x) * 0.1 * obj.rotSpeedFac;
+			rotation.y += (target.y - rotation.y) * 0.1 * obj.rotSpeedFac;
 			distance += (obj.distanceTarget - distance) * 0.3;
 			camera.position.x = distance * Math.sin(rotation.x) * Math.cos(rotation.y);
 			camera.position.y = distance * Math.sin(rotation.y);
@@ -1767,7 +1774,7 @@ GLOBE.TYPES.Globe = function (cid) {
 							'if (dage > 1.0) { dage = 2.0 - dage; }',
 							//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
 							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart ));',
-							'gl_PointSize = dage * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
+							'gl_PointSize =(0.5 + dage *0.5) * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
 							'gl_Position = projectionMatrix * modelViewMatrix * coord;',
 						'} else {',
 							'gl_PointSize = 0.0;',
@@ -1866,6 +1873,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.disableDaylight = disableDaylight;
 		obj.setParticleSize = setParticleSize;
 		obj.getHoveredCountry = getHoveredCountry;
+		obj.setRotationSpeed = setRotationSpeed;
 		//obj.shaders = shaders; /* export for debuging purposes */
 
 		render();
