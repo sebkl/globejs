@@ -69,6 +69,14 @@ var GLOBE = GLOBE || {
 		},
 		'flagUrl': function(iso) {
 			return "img/flags/" + iso + ".png";
+		},
+		'localTime': function(lo) {
+			/*TODO: needs improvement ;) */
+			var date = new Date();
+			var offset = Math.round(lo * 24 /360);
+			offset += (date.getTimezoneOffset()/60);
+			var ret = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours() + offset, date.getMinutes(), date.getSeconds());
+			return ret;
 		}
 	},
 	'TYPES': { /* globe.js */ },
