@@ -468,6 +468,23 @@ GLOBE.TYPES.Globe = function (cid) {
 			return text;
 		};
 
+		function createGeoDataTexture() {
+			var width = 2*256;
+			var height =2*128;
+			var size = width * height;
+			var data = new Uint8Array( size );
+
+			for ( var i = 0; i < size; i ++ ) {
+				//data[i] = Math.floor((size/i) *255);
+				data[i] = 255;
+			}
+			var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
+			text.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
+			text.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+			text.needsUpdate = true;
+			return text;
+		};
+
 		function calibrate_longitude(x) {
 			x += 90;
 			if (x > 180)
@@ -1468,6 +1485,10 @@ GLOBE.TYPES.Globe = function (cid) {
 						type: "t", 
 						value:  createCountryDataTexture()
 					},
+					"geodata" : {
+						type: "t",
+						value: createGeoDataTexture()
+					},
 					"selection" :{
 						type: "v4",
 						value:  arrayColorToVector(obj.hoverColor,obj.colorIntensity)
@@ -1530,6 +1551,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform float mousex;',
 					'uniform float mousey;',
 					'uniform sampler2D countrydata;',
+					'uniform sampler2D geodata;',
 					'uniform float cintensity;',
 					'uniform float calpha;',
 					'uniform vec4 selection;',
@@ -1576,7 +1598,6 @@ GLOBE.TYPES.Globe = function (cid) {
 							  'float city_fac = 0.0;',
 							  'float day_factor = 1.0;',
 
-
 							  'if (lightcolor.x >= 0.0 && lightcolor.y >= 0.0 && lightcolor.z >= 0.0) {',
 								  'vec3 lightv= normalize(lightvector);',
 								  'day_factor = max(0.0,dot(vNormal, lightv));',
@@ -1609,8 +1630,9 @@ GLOBE.TYPES.Globe = function (cid) {
 							  'diffuse = vec4(mix(diffuse.xyz,bcolor,(texture2D(texture,vUv2).y * bintensity)),1.0);', /* Border Color */
 							  'diffuse = vec4(mix(diffuse.xyz,city_col,city_fac),diffuse.a);', /* City Color */
 							  'vec3 atmosphere = mix(diffuse.xyz,acolor,pow( intensity, 3.0 ));', /* atmosphere */
+							  'float geo = texture2D(geodata,vUv).x;',
 							  'diffuse = vec4(mix(diffuse.xyz,atmosphere,day_factor),diffuse.a);', /* atmosphere */
-							  'gl_FragColor = (diffuse.a * brightness) * diffuse;',
+							  'gl_FragColor = (diffuse.a * brightness) * diffuse * 1.0;',
 					'}'
 				].join('\n')
 			},
