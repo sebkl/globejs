@@ -9,6 +9,1352 @@
  *
  */
 GLOBE.TYPES.Globe = function (cid) {
+	/* Helper function to convert a color object */
+	function colorToVector(c) {
+		return new THREE.Vector3(c.r,c.g,c.b);
+	}
+
+	/* Helper function to convert a color object */
+	function colorToArrayColor(c) {
+		return [c.r *255,c.g *255,c.b *255];
+	}
+
+	/* Helper function to convert a color object */
+	function arrayColorToColor(c) {
+		return new THREE.Color(c[0]/256,c[1]/256,c[2]/256);
+	}
+
+	/* Helper function to invert a color object */
+	function invertColor(c) {
+		if (Array.isArray(c)) {
+			return [ 255 - c[0], 255 - c[1], 255 - c[2] ];
+		} else {
+			return new THREE.Color( 1.0 - c.r, 1.0 -c.g, 1.0 -c.b );
+		}
+	}
+			
+	/* Helper function to convert a color object 
+	 * params:	c - 8bit Color values [ 255,255,255 ]
+	 * 		i - normalized alpha value (0 - 1)
+	 * */
+	function arrayColorToVector(c,i) {
+		return new THREE.Vector4(c[0]/256,c[1]/256,c[2]/256,i);
+	}
+
+	/* Helper function to convert a color object */
+	function arrayColorToVector3(c) {
+		return new THREE.Vector3(c[0]/256,c[1]/256,c[2]/256);
+	}
+
+	function applyDatGuiControlConfiguration(gui) {
+		var g = gui.addFolder('Globe');
+		var p = g.addFolder('Particles');
+		p.add(obj,'particleSize',1,100);
+		p.add(obj,'particleLifetime',1,1000);
+		p.addColor(obj,'particleColor').onChange(function(value) {
+			for (var i = 0; i < particle_count;i++) {
+				shaders.particle.attributes.color.value[i] = arrayColorToVector(obj.particleColorFilter(value),1.0);
+			}
+			//shaders.particle.attributes.needsUpdate = true;
+		});
+
+		var c = g.addFolder('Countries');
+		c.add(obj,'colorIntensity',0,1.0).onFinishChange(function(value) { 
+			shaders.earth.uniforms.cintensity.value = value; 
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+
+		c.add(obj,'borderIntensity',0,1.0).onFinishChange(function (value) {
+			shaders.earth.uniforms.bintensity.value = value; 
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+
+		c.addColor(obj,'bColor').onChange(function(val) {
+			obj.setBorderColor(arrayColorToColor(val));
+		});
+
+		c.addColor(obj,'hoverColor').onChange(function(value) { 
+			obj.setCountryHoverColor(arrayColorToColor(value));
+		});
+		c.add(obj,'clearCountryColors');
+
+		var e = g.addFolder('Earth');
+		e.addColor(obj,'lightColor').onChange(function(val) {
+			obj.setLightColor(arrayColorToColor(val));
+		});
+		e.addColor(obj,'aColor').onChange(function(val) {
+			obj.setAtmosphereColor(arrayColorToColor(val));
+		});
+		e.addColor(obj,'bgColor').onChange(function(val) {
+			obj.setBackgroundColor(arrayColorToColor(val));
+		});
+		obj.dayofyear = 1.0;
+		e.add(obj,'dayofyear',1.0,356.0).onFinishChange(function (value) {
+			shaders.earth.uniforms.dayofyear.value = value; 
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+		obj.hourofday = 0.0;
+		e.add(obj,'hourofday',0.0,24.0).onFinishChange(function (value) {
+			shaders.earth.uniforms.hourofday.value = value; 
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+
+		e.add(obj,'disableDaylight');
+		e.add(obj,'enableDaylight');
+
+		e.add(obj,'stop');
+		e.add(obj,'start');
+		e.add(obj,'brightness',0,1.0).onFinishChange(function(value) {
+			shaders.earth.uniforms.brightness.value = value;
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+
+		e.add(obj,'colorization',0,1.0).onFinishChange(function(value) {
+			shaders.earth.uniforms.color_intensity.value = value;
+			shaders.earth.uniforms.needsUpdate = true;
+		});
+
+		e.add(obj,'lightOn');
+		e.add(obj,'lightOut');
+		e.add(obj,'setBlackMode');
+		e.add(obj,'setWhiteMode');
+
+		var t = g.addFolder('Pillars');
+		t.add(obj,'clearPillars');
+
+		var l = g.addFolder('Lines');
+		l.add(obj,'clearConnections');
+	}
+
+	function unsetCountryColor(opco) {
+		if (opco === undefined || opco == "ALL") {
+			this.clearCountryColors();
+		} else {
+			this.setCountryColor(opco,new THREE.Color(0x000000));
+		}
+	}
+
+	function setRotationSpeed(fac) {
+		obj.rotSpeedFac = fac;
+	}
+
+	/*
+	 * params:  color - THREE.Color()
+	 * */
+	function setBackgroundColor(color) {
+		obj.bgColor = colorToArrayColor(color);
+		renderer.setClearColor(color, 1);
+		shaders.earth.uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
+		shaders.atmosphere.uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
+		shaders.earth.uniforms.needsUpdate = true;
+		shaders.atmosphere.uniforms.needsUpdate = true;
+	}
+
+	function setCountryHoverColor(color) {
+		obj.hoverColor = colorToArrayColor(color);
+		shaders.earth.uniforms.selection.value = arrayColorToVector(obj.hoverColor,0.4);
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	/*
+	 * params:  color - THREE.Color()
+	 * */
+	function setAtmosphereColor(color) {
+		obj.aColor = colorToArrayColor(color);
+		shaders.atmosphere.uniforms.acolor.value = arrayColorToVector3(obj.aColor);
+		shaders.earth.uniforms.acolor.value = arrayColorToVector3(obj.aColor);
+		shaders.atmosphere.uniforms.needsUpdate = true;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	/*
+	 * params:  color - THREE.Color()
+	 * */
+	function setBorderColor(color) {
+		obj.bColor = colorToArrayColor(color);
+		shaders.earth.uniforms.bcolor.value = arrayColorToVector3(obj.bColor);
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function setBorderIntensity(v) {
+		borderIntensity = v;
+		shaders.earth.uniforms.bintensity.value = borderIntensity;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function setColorIntensity(v) {
+		shaders.earth.uniforms.color_intensity.value = v;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function setCountryColorIntensity(v) {
+		colorIntensity = v;
+		shaders.earth.uniforms.cintensity.value = colorIntensity; 
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function setWhiteMode() {
+		obj.particleColorFilter = invertColor;
+		obj.particleBlending = THREE.SubtractiveBlending;
+
+		setBorderColor(COLOR_BLACK);
+		setBackgroundColor(COLOR_WHITE);
+		setAtmosphereColor(new THREE.Color(0xaaaaaa));
+		setBorderIntensity(1.0);
+		setColorIntensity(0.0);
+		setCountryColorIntensity(1.0);
+		setLightColor(new THREE.Color(0x555555));
+
+		buildParticles();
+		renderer.setClearColor(COLOR_WHITE, 1.0);
+		renderer.clear();
+	}
+
+	function setBlackMode() {
+		obj.particleColorFilter = function(d) {return d; };
+		obj.particleBlending = THREE.AdditiveBlending;
+
+		setBorderColor(COLOR_WHITE);
+		setBackgroundColor(COLOR_BLACK);
+		setAtmosphereColor(new THREE.Color(0x7f7fff));
+		setBorderIntensity(DEFAULT_BORDER_INTENSITY);
+		setColorIntensity(1.0);
+		setCountryColorIntensity(DEFAULT_COLOR_INTENSITY);
+		setLightColor(DEFAULT_LIGHT_COLOR);
+
+		buildParticles();
+		renderer.setClearColor(COLOR_BLACK, 1.0);
+		renderer.clear();
+	}
+
+	/* Sets country color for list of iso codes:
+	 * params:	iso - array of iso codes [ 'DE','ES', ... ]
+	 * 		color - THREE.Color()
+	 * 		alpha - alpha value 0 - 1
+	 * 		index - country index id. Only used if iso code not et mapped.
+	 * */
+	function setCountryColor(iso,color,alpha,index) {
+		var ma;
+
+		if (iso instanceof Array) {
+			ma = iso;
+		} else {
+			ma = [iso];
+		}
+
+		if (index === undefined) {
+			index = 0;
+		}
+
+		if (alpha === undefined) {
+			alpha = 1.0;
+		}
+
+		var shader = shaders.earth.uniforms.countrydata.value;
+
+		for (var x = 0; x < ma.length;x++) {
+			try {
+				var c = GLOBE.GEO.country_to_index(ma[x].toUpperCase());
+				var o = index * 256;
+				var i = c + o;
+				shader.image.data[ i * 4 + 0] = color.r * 255;
+				shader.image.data[ i * 4 + 1] = color.g * 255;
+				shader.image.data[ i * 4 + 2] = color.b * 255;
+				shader.image.data[ i * 4 + 3] = alpha * 255;
+				_switchCountryColor(c);
+			} catch (err) {
+				console.log("Unknown country: " + ma[x] + ": "+ err);
+			}
+		}
+	}
+
+	function immediateClearCountryColors() {
+		var tex =  createCountryDataTexture();
+		shaders.earth.uniforms.countrydata.value = tex;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function clearCountryColors() {
+		var shader = shaders.earth.uniforms.countrydata.value;
+		for (var i = 0; i < 256; i ++) {
+			/*
+			shader.image.data[i * 4 + 0] = 0;
+			shader.image.data[i * 4 + 1] = 0;
+			shader.image.data[i * 4 + 2] = 0; */
+			shader.image.data[i * 4 + 3] = 0;
+			_switchCountryColor(i);
+		}
+	}
+
+	function _switchCountryColor(idx) {
+		var map = shaders.earth.uniforms.countrydata.value;
+
+		if (countryTweenMap[idx] !== undefined) {
+			countryTweenMap[idx].stop();
+			delete countryTweenMap[idx];
+		}
+
+		if ( 	map.image.data[ (256 + idx) * 4 + 0] == map.image.data[ (idx) * 4 + 0] &&
+			map.image.data[ (256 + idx) * 4 + 1] == map.image.data[ (idx) * 4 + 1] &&
+			map.image.data[ (256 + idx) * 4 + 2] == map.image.data[ (idx) * 4 + 2] &&
+			map.image.data[ (256 + idx) * 4 + 3] == map.image.data[ (idx) * 4 + 3]) {
+			return;
+		}
+
+		var tween = new TWEEN.Tween( { 
+			r: map.image.data[ (256 + idx) * 4 + 0],
+			g: map.image.data[ (256 + idx) * 4 + 1],
+			b: map.image.data[ (256 + idx) * 4 + 2],
+			a: map.image.data[ (256 + idx) * 4 + 3]
+		}).to ({
+			r: map.image.data[ (idx) * 4 + 0],
+			g: map.image.data[ (idx) * 4 + 1],
+			b: map.image.data[ (idx) * 4 + 2],
+			a: map.image.data[ (idx) * 4 + 3]
+		},500).onComplete(function() {
+			delete countryTweenMap[idx];
+		}).onUpdate( function() {
+			map.image.data[ (256 + idx) * 4 + 0] = this.r;
+			map.image.data[ (256 + idx) * 4 + 1] = this.g;
+			map.image.data[ (256 + idx) * 4 + 2] = this.b;
+			map.image.data[ (256 + idx) * 4 + 3] = this.a;
+			map.needsUpdate = true;
+		}).easing( TWEEN.Easing.Linear.EaseNone )
+		.start();
+		countryTweenMap[idx] = tween;
+	}
+
+
+	function createDataTexture(width, height,depth,val) {
+		var size = width * height;
+		var data = new Uint8Array( depth * size );
+
+		for ( var i = 0; i < size; i ++ ) {
+			for (var d = 0; d < depth; d++) {
+				data[ i * depth + d ] = val;
+			}
+		}
+
+		var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
+		//THREE.UnsignedByteType  // has depth 1
+		//THREE.RGBFormat // has depth 3
+		//THREE.RGBAFormat // has depth 4
+		//
+		//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		text.needsUpdate = true;
+		return text;
+	}
+
+	function createGeoDataTexture(det) {
+		if (det === undefined) {
+			det = 1;
+		}
+		det = Math.round(det);
+
+		var width =  360 * det;
+		var height =  180 * det;
+		var ret = createDataTexture(width,height,4,0);
+
+		return ret;
+	}
+
+	function clearGeoDataColor() {
+		shaders.earth.uniforms.geodata.value = createGeoDataTexture();
+		shaders.earth.uniforms.geodata.needsUpdate = true;
+	}
+
+	function setGeoDataTexture(tex) {
+		shaders.earth.uniforms.geodata.value = tex;
+		shader.needsUpdate = true;
+	}
+
+	function setGeoDataColor(lon,lat,col,alpha) {
+		var shader = shaders.earth.uniforms.geodata.value;
+		var longval = Math.round(shader.image.width *((lon + 180)/360));
+		var latval = Math.round(shader.image.height * ((lat + 90)/180));
+		var i = (shader.image.width * latval) + longval;
+		console.log(longval + " " + latval + " " + i);
+		shader.image.data[ i * 4 + 0] = col.r * 255;
+		shader.image.data[ i * 4 + 1] = col.g * 255;
+		shader.image.data[ i * 4 + 2] = col.b * 255;
+		shader.image.data[ i * 4 + 3] = alpha * 255;
+		shader.needsUpdate = true;
+	}
+
+	function createCountryDataTexture() {
+		var ret = createDataTexture(256,2,4,0);
+		ret.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
+		ret.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		return ret;
+	}
+
+	function calibrate_longitude(x) {
+		x += 90;
+		if (x > 180)
+			x-=360;
+		return x;
+	}
+
+	function decalibrate_longitude(x) {
+		x -= 90;
+		return x;
+	}
+
+	function degree_to_radius_longitude(v) {
+		return calibrate_longitude(v)*(( 1 /360.0) * 2 * Math.PI);
+	}
+
+	function degree_to_radius_latitude(v) {
+		return -v*(( 1 /360.0) * 2 * Math.PI);
+	}
+
+	function radius_to_degree_longitude(v) {
+		return (v / (( 1 /360.0) * 2 * Math.PI));
+	}
+
+	function radius_to_degree_latitude(v) {
+		return -(v / (( 1 /360.0) * 2 * Math.PI));
+	}
+
+	function buildParticles() {
+		particleScene = new THREE.Scene();
+		var shader = shaders.particle;
+		var longs = shader.attributes.longitude.value;
+		var lats = shader.attributes.latitude.value;
+		var destx = shader.attributes.longitude_d.value;
+		var desty = shader.attributes.latitude_d.value;
+		var lifetimes = shader.attributes.lifetime.value;
+		var created = shader.attributes.created.value;
+		var sizes = shader.attributes.size.value;
+		var random = shader.attributes.size.value;
+		var color = shader.attributes.color.value;
+		var hf = shader.attributes.heightfactor.value;
+		//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
+
+		particles = new THREE.Geometry();
+		for (var i = 0; i < particle_count;i++) {
+
+			particles.vertices[i] =  new THREE.Vector3(0,0,0);
+			longs[i] = degree_to_radius_longitude(0);
+			lats[i] = degree_to_radius_latitude(0);
+			created[i] = tic;
+			destx[i] = degree_to_radius_longitude(0);
+			desty[i] = degree_to_radius_latitude(0);
+			lifetimes[i] = 0;
+			sizes[i] = 0;
+			random[i] = 0.5;
+			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
+			hf[i] = 1.0;
+		}
+
+		var material = new THREE.ShaderMaterial ( {
+			uniforms: shader.uniforms,
+			attributes: shader.attributes,
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader,
+			transparent: true,
+			blending: obj.particleBlending,
+			depthTest: true,
+			wireframe: true,
+			depthWrite: false //Magic setting to make particles not clipping ;)
+		});
+
+		particleSystem = new THREE.ParticleSystem(
+			particles,
+			material
+		);
+
+		particleSystem.dynamic=true;
+		particleScene.add(particleSystem);
+		console.log("Particles initialized.");
+	}
+
+	function createSourceParticle(x,y,c,hf) {
+		createMoveParticle(x,y,x,y,c,hf);
+	}
+
+	/* Create a particle that moves from (x,y) to (dx,dy)
+	 * x  - origin longitude
+	 * y  - origin latitude
+	 * dx - target longitude
+	 * dy - target latitude
+	 * c  - color of marticle in [ 255,255,255 ] color notation 
+	 * hf - height factor where 1 is standard height */
+	function createMoveParticle(x,y,dx,dy,c,hf) {
+		createParticle(x,y,dx,dy,obj.particleLifetime,obj.particleSize,c,hf);
+	}
+
+	function createParticle(x,y,dx,dy,lifetime,particleSize,c,hf) {
+		if (particles !== undefined) {
+			var shader = shaders.particle;
+			var longs = shader.attributes.longitude.value;
+			var lats = shader.attributes.latitude.value;
+			var destx = shader.attributes.longitude_d.value;
+			var desty = shader.attributes.latitude_d.value;
+			var lifetimes = shader.attributes.lifetime.value;
+			var created = shader.attributes.created.value;
+			var sizes = shader.attributes.size.value;
+			var random = shader.attributes.random.value;
+			var color = shader.attributes.color.value;
+			var heightfactor = shader.attributes.heightfactor.value;
+
+			var i = particle_cursor;
+
+
+			if ( (tic - created[i]) < lifetimes[i] ) {
+				console.log("Particle buffer overflow ;)");
+			}
+
+			longs[i] = (degree_to_radius_longitude(x));
+			lats[i] = (degree_to_radius_latitude(y));
+			created[i] = (tic);
+			destx[i] = (degree_to_radius_longitude(dx));
+			desty[i] = (degree_to_radius_latitude(dy));
+			lifetimes[i] = (lifetime);
+			sizes[i] = particleSize;
+			random[i] = Math.random();
+
+			if (c !== undefined && c !== null) {
+				color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
+			}
+
+			if (hf !== undefined && hf !== null) {
+				heightfactor[i] = hf;
+			}
+
+			shader.attributes.color.needsUpdate=true;
+			shader.attributes.heightfactor.needsUpdate=true;
+			shader.attributes.longitude.needsUpdate=true;
+			shader.attributes.latitude.needsUpdate=true;
+			shader.attributes.longitude_d.needsUpdate=true;
+			shader.attributes.latitude_d.needsUpdate=true;
+			shader.attributes.created.needsUpdate=true;
+			shader.attributes.lifetime.needsUpdate=true;
+			shader.attributes.size.needsUpdate=true;
+			shader.attributes.random.needsUpdate=true;
+
+			particle_cursor++;
+
+			if (particle_cursor > particle_count) {
+				particle_cursor = 0;
+			}
+		}
+	}
+
+	/* Lazy initialized hi-res spehere geometry. */
+	function getSphereGeometryHiRes() {
+		if (sphereGeometryHiRes === undefined) {
+			sphereGeometryHiRes = new THREE.SphereGeometry( RADIUS,80,40 );
+		}
+
+		return sphereGeometryHiRes;
+	}
+
+	/* Lazy initialized low-res spehere geometry. */
+	function getSphereGeometryLowRes() {
+		if (sphereGeometryLowRes === undefined) {
+			sphereGeometryLowRes = new THREE.SphereGeometry( RADIUS,40,20 );
+		}
+		return sphereGeometryLowRes;
+	}
+
+	/** Create the earth sphere object.  */
+	function buildSphere() {
+		var shader = shaders.earth;
+
+		var texture = THREE.ImageUtils.loadTexture(atlas_url);
+		var countrymap = THREE.ImageUtils.loadTexture(cmap_url);
+
+		//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		countrymap.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
+		countrymap.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+
+		shader.uniforms.texture.value = texture;
+		shader.uniforms.countrymap.value = countrymap;
+
+		var sphereMaterial = new THREE.ShaderMaterial ( {
+			uniforms: shader.uniforms,
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader
+		} );
+
+		sphere = new THREE.Mesh( 
+			getSphereGeometryHiRes(),
+			sphereMaterial
+		);
+
+		scene.add(sphere);
+		console.log("GLOBE sphere initialized.");
+	}
+
+	/** Create the earth atmosphere object. */
+	function buildAtmosphere() {
+		atmosphereScene = new THREE.Scene();
+		var shader = shaders.atmosphere;
+		var atmosphereMaterial = new THREE.ShaderMaterial ( {
+			uniforms: shader.uniforms,
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader,
+			side: THREE.BackSide,
+			transparent: true,
+			opacity: 1.0
+
+		} );
+
+		atmosphere = new THREE.Mesh(
+			getSphereGeometryLowRes(),
+			atmosphereMaterial
+		);
+
+		atmosphere.scale.x = atmosphere.scale.y = atmosphere.scale.z = ATMOSPHERE_SIZE_FACTOR;
+		//scene.add(atmosphere);
+		atmosphereScene.add(atmosphere);
+		console.log("Atmosphere initialized");
+	}
+
+	/* Initialize geometry required by data pillars. */
+	function buildDataPillars() {
+		pillarGeometry = new THREE.CubeGeometry(0.75, 0.75, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
+		for (var i = 0; i < pillarGeometry.vertices.length; i++) {
+			var vertex = pillarGeometry.vertices[i];
+			//vertex.position.z += 0.5;
+			vertex.z += 0.5;
+		}
+		console.log("Data Pillars initialized.");
+	}
+
+	/* Add a data pillar at given geo-coordinates.
+	 *  lat - Latitude
+	 *  lng - Longitude
+	 *  factor - normalized size and color factor (0.0 - 1.0) 
+	 *  */
+	function addDataPillar(lat,lng,factor) {
+		return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
+	}
+
+	/* Add a data pillar for a given country.
+	 *  iso -  country iso code.
+	 *  factor - normalized size and color factor (0.0 - 1.0)
+	 *  */
+	function addCountryPillar(iso,factor) {
+		var p;
+		if (countryPillars[iso] !== undefined) {
+			p = countryPillars[iso];
+			changePillarFactor(p,factor);
+		} else {
+			var co = GLOBE.GEO.lookup_geo_points(iso);
+			//console.log("" + iso + " (" + co[0] + "," + co[1] + ")");
+			p = addDataPillar(co[0],co[1],factor);
+			countryPillars[iso] = p;
+		}
+		return p;
+	}
+
+	/* Add a connection line netween two countries:
+	 *  from - iso country code of source country.
+	 *  to   - iso country code of destination country.
+	 *  intensity - thickness (1.0 is standard)
+	 *  */
+	function connectCountry(from,to,intensity) {
+		var f = GLOBE.GEO.lookup_geo_points(from);
+		var t = GLOBE.GEO.lookup_geo_points(to);
+		return connectPolar(f[0],f[1], t[0], t[1],intensity);
+	}
+
+	function connectPolar(x,y,dx,dy,intensity) {
+		return createLine(x,y,dx,dy,intensity);
+	}
+
+	function addPolarConnections(data,i) {
+		return createLines(data,i);
+	}
+
+	function createLine(geo_x,geo_y,geo_dx,geo_dy, intensity) {
+		return createLines([[geo_x,geo_y,geo_dx,geo_dy]],intensity);
+	}
+
+	function createLines(data,intensity) {
+		var lineGeometry = new THREE.Geometry();
+		var inte = intensity || 1.0;
+		var idx;
+		for (idx = 0; idx < data.length; idx++) {
+			var l = data[idx];
+			var geo_x = l[0];
+			var geo_y = l[1];
+			var geo_dx = l[2];
+			var geo_dy = l[3];
+
+			var from = new THREE.Vector3(degree_to_radius_longitude(geo_x),degree_to_radius_latitude(geo_y),RADIUS);
+			var to = new THREE.Vector3(degree_to_radius_longitude(geo_dx),degree_to_radius_latitude(geo_dy),RADIUS);
+
+			var lp = LINE_POINTS -1;
+
+			try {
+				for (var i = 0; i <= lp; i++) {
+						var age = i/lp;
+						var v = new THREE.Vector3(0,0,0);
+						v.x = from.x*(1.0-age) + to.x * age;
+						v.y = from.y*(1.0-age) + to.y * age;
+						v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
+						var t = convert_from_polar(v);
+						//console.log("(" + t.x +"," + t.y + "," + t.z + ")");
+						lineGeometry.vertices.push(t);
+				}
+			} catch (e) {
+				console.log(" Adding line failed: " + e);
+			}
+		}
+		console.log("Added : " + idx);
+
+		var lineMaterial = new THREE.LineBasicMaterial( { 
+				color: 		LINE_COLOR, 
+				opacity: 	inte, 
+				transparent: 	true,
+				linewidth: 1 } 
+		);
+
+		var line = new THREE.Line( lineGeometry, lineMaterial, THREE.LineStrip );
+		line.position.x = 0;
+		line.position.y = 0;
+		line.position.z = 0;
+
+		lines.push(line);
+		scene.add(line);
+		return line;
+	}
+
+	function removeConnection(con) {
+		scene.remove(con);
+	}
+
+	function clearConnections() {
+		for (var i = 0; i < lines.length; i ++) {
+			scene.remove(lines[i]);
+		}
+		lines = [];
+	}
+
+	function _setPillarData(factor) {
+		var pillar = this;
+		this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
+		var tween = new TWEEN.Tween( { 
+					z: pillar.scale.z
+				} )
+				.to( {
+					z: -((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE)
+				}, 200 )
+				.easing( TWEEN.Easing.Linear.EaseNone )
+				.onUpdate( function () {
+					pillar.scale.z = this.z;
+					pillar.needsUpdate = true;
+				} );
+		tween.start();
+	}
+
+	function addPillar(lng,lat, size,color) {
+		var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
+
+		var pillar = new THREE.Mesh(pillarGeometry, new THREE.MeshBasicMaterial( { color: color }));
+
+		pillar.position = pos;
+
+		pillar.lookAt(scene.position);
+		pillar.scale.z = -((size*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
+		blendPillar(pillar,0.0,1.0);
+		pillars.push(pillar);
+		scene.add(pillar);
+		pillar.setData = _setPillarData;
+		return pillar;
+	}
+
+	function blendPillar(pillar,f_fac,t_fac,complete) {
+
+		var tween = new TWEEN.Tween( { 
+					x: pillar.scale.x* f_fac,
+					y: pillar.scale.y* f_fac,
+					z: pillar.scale.z* f_fac
+				} )
+				.to( { 	x: pillar.scale.x*t_fac, 
+					y: pillar.scale.y*t_fac,
+					z: pillar.scale.z*t_fac
+				
+				
+				}, 1000 )
+				.easing( TWEEN.Easing.Linear.EaseNone )
+				.onUpdate( function () {
+					pillar.scale.z = this.z;
+					pillar.scale.x = this.x;
+					pillar.scale.y = this.y;
+					pillar.needsUpdate = true;
+				} );
+
+		if (complete !== undefined) {
+			tween = tween.onComplete(complete);
+		}
+
+		tween.start();
+	}
+
+	function lightOut() {
+		changeColorMode(0.4,0.0);
+	}
+
+	function lightOn() {
+		changeColorMode(1.0,1.0);
+	}
+
+	function changeColorMode(bn,ci) {
+		var tween = new TWEEN.Tween( {
+				b: shaders.earth.uniforms.brightness.value,
+				c: shaders.earth.uniforms.color_intensity.value
+		}).to({ 	b: bn,
+				c: ci
+		}, 500)
+		.easing(TWEEN.Easing.Linear.EaseNone )
+		.onUpdate(function() {
+			shaders.earth.uniforms.brightness.value = this.b;
+			shaders.earth.uniforms.color_intensity.value = this.c;
+			shaders.earth.uniforms.needsUpdate = true;
+		}).start();
+	}
+
+	function switchDataPillars(data) {
+		clearPillars(function () {
+			addDataPillars(data);
+		});
+	}
+
+	/* Creates a static set of Pillars based on the data array. All pillars are created as a big geometry which improves rendering performance.
+	 * data array format : [ [long,lat,size_factor], [...], ... ]
+	 * These pillars can not be split up and following to that can only be removed from scene at once.
+	 * */
+	function addDataPillars(data) {
+		var max = 0;
+		for (var i = 0; i < data.length;i++) {
+			if (data[i][2] > max) {
+				max = data[i][2];
+			}
+		}
+		var pg = pillarGeometry;
+
+		/* Mother geometry */
+		var subgeo = new THREE.Geometry();
+		var point = new THREE.Mesh(pg,THREE.MeshFaceMaterial());
+		for (i = 0; i < data.length;i++) {
+			var lng = data[i][0];
+			var lat = data[i][1];
+			var val = data[i][2]/max;
+			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
+			var color = GLOBE.HELPER.factorToColor(val);
+			var scale = -((val*PILLAR_FULLSIZE));
+			point.scale.z = scale;
+			point.position = pos;
+			for (var ii = 0; ii < point.geometry.faces.length; ii++) {
+				point.geometry.faces[ii].color = color;
+			}
+			point.lookAt(scene.position);
+			THREE.GeometryUtils.merge(subgeo, point);
+		}
+
+		var points = new THREE.Mesh(subgeo, new THREE.MeshBasicMaterial({
+		      color: 0xffffff,
+		      vertexColors: THREE.FaceColors
+		}));
+
+		blendPillar(points,0.0,1.0);
+		pillars.push(points);
+		scene.add(points);
+		return points;
+	}
+
+	function changePillarFactor(pillar,factor) {
+		pillar.material.color = GLOBE.HELPER.factorToColor(factor); // TODO: include this in animation.
+		var tween = new TWEEN.Tween( {x: pillar.scale.z } )
+			.to ( {x: -(PILLAR_FULLSIZE*factor)}, 1000 )
+			.easing( TWEEN.Easing.Linear.EaseNone )
+			.onUpdate( function () {
+				pillar.scale.z = this.x;
+				pillar.needsUpdate = true;
+
+			} )
+			.start();
+		return pillar;
+	}
+
+	function disableDaylight() {
+		var disable = new THREE.Vector3(-1.0,-1.0,-1.0);
+		shaders.earth.uniforms.lightcolor.value = disable;
+		shaders.atmosphere.uniforms.lightcolor.value = disable;
+		shaders.atmosphere.uniforms.needsUpdate = true;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function enableDaylight() {
+		shaders.earth.uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
+		shaders.atmosphere.uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
+		shaders.atmosphere.uniforms.needsUpdate = true;
+		shaders.earth.uniforms.needsUpdate = true;
+	}
+
+	function isDaylightEnabled() {
+		var disable = new THREE.Vector3(-1.0,-1.0,-1.0);
+		return (shaders.earth.uniforms.lightcolor.value != disable);
+	}
+
+	function setLightColor(col) {
+		obj.lightColor = colorToArrayColor(col);
+		if (isDaylightEnabled()) {
+			enableDaylight();
+		}
+	}
+
+	function updateTime() {
+		setTime(new Date());
+	}
+
+	function setTime(d) {
+		if (d !== undefined && d !== null) {
+			time = d;
+			var h = d.getUTCHours() - 12.0;
+			var doy = (GLOBE.HELPER.dayOfYear(d)-1) - 180.0;
+
+			if (h < 0) {
+				h = 24.0 + h;
+			}
+
+			if (doy < 0){
+				doy = 356.0 + doy;
+			}
+
+			//shaders.earth.uniforms.hourofday.value = h;
+			//shaders.earth.uniforms.dayofyear.value = doy + 1.0;
+			shaders.earth.uniforms.needsUpdate = true;
+			//TODO: Set light vector based on time
+		} else {
+			//shaders.earth.uniforms.hourofday.value = 0.0;
+			//shaders.earth.uniforms.dayofyear.value = 0.0;
+			shaders.earth.uniforms.needsUpdate = true;
+			//TODO: Set light vector based on time
+		}
+	}
+
+	/* Blend out/Remove all registered pillars. 
+	 * Objects will also be removed from scene after animation is complete.
+	 * */
+	function clearPillars(callback) {
+		var pil = pillars;
+		pillars = [];
+		for (var i = 0; i < pil.length; i++) {
+			blendPillar(pil[i],1.0,0.0);
+		}
+		setTimeout(function() {
+			for (var p = 0; p < pil.length; p++) {
+				scene.remove(pil[p]);
+			}
+			if ((pil.length === 0) && (callback !== undefined)) {
+				callback();
+			}
+		},1000);
+	}
+
+	function onMouseInContainer(e) {
+		console.log("Inside container");
+		overRenderer = true;
+		//container.addEventListener('mousedown', onMouseDown, true);
+		$(containerId).bind('mousedown',undefined, onMouseDown);
+	}
+
+	function onMouseOutContainer(e) {
+		console.log("Outside container");
+		updateHoverHandler(NO_COUNTRY);	
+		overRenderer = false;
+		$(containerId).unbind('mousedown', onMouseDown);
+	}
+
+	function eventCountryHover(e,iso) {
+		obj.setHoverCountry(iso);
+	}
+
+	function eventCountryUnhover(e) {
+		obj.setHoverCountry('0');
+	}
+
+	/** Internally used gunction to deal with color set events for a country.
+	 * It assigns a user specified color to the given country. Event parameter is actually ignored. */
+	function eventSetCountryColor(e,opco,col) {
+		console.log("Setting color for country: " + opco);
+		obj.setCountryColor(opco,col);
+	}
+
+	/* Internally used function to deal with color unset event for a country.
+	 * It removes the currently assigned color of the given country. Event parameter is actually ignored. */
+	function eventUnsetCountryColor(e,opco) {
+		obj.unsetCountryColor(opco);
+	}
+
+	function eventNavigationZoomIn(e) {
+		zoom(ZOOM_CLICK_STEP);
+	}
+
+	function eventNavigationZoomOut(e) {
+		zoom(-ZOOM_CLICK_STEP);
+	}
+
+	function eventCountryFocus(e,opco) {
+		obj.moveToCountry(opco);
+	}
+
+	/** Add all relevant Event listeners */
+	function addEventListeners() {
+		console.log("Adding event Listener for 3D globe.");
+
+		/* Set event handler for environment */
+		$(document).bind('country:focus',eventCountryFocus);
+		$(document).bind('country:hover',eventCountryHover);
+		$(document).bind('country:unhover',eventCountryUnhover );
+
+		/*Steup event Listeners. */
+		window.addEventListener('resize', onWindowResize, false);
+		$(containerId).bind('mousedown', undefined, onMouseDown);
+		$(containerId).bind('mousewheel',undefined,  onMouseWheel);
+		$(containerId).bind('mousemove',undefined,  onMouseBrowse);
+		//document.addEventListener('keydown', onDocumentKeyDown, false);                                                                                           
+		$(containerId).bind('mouseover',undefined,  onMouseInContainer);
+		$(containerId).bind('mouseout',undefined,  onMouseOutContainer);
+
+		$(document).bind('country:color:set', eventSetCountryColor);
+		$(document).bind('country:color:unset', eventUnsetCountryColor);
+
+		$(document).bind('navigation:zoom:in', eventNavigationZoomIn);
+		$(document).bind('navigation:zoom:out', eventNavigationZoomOut);
+	}
+
+	/** Remove all relevant Event listeners */
+	function removeEventListeners() {
+		window.removeEventListener('resize', onWindowResize, true);
+		$(containerId).unbind('mousedown', onMouseDown);
+		$(containerId).unbind('mousewheel', onMouseWheel);
+		$(containerId).unbind('mousemove', onMouseBrowse);
+		$(containerId).unbind('mouseover', onMouseInContainer);
+		$(containerId).unbind('mouseout', onMouseOutContainer);
+
+		$(document).unbind('country:focus',eventCountryFocus);
+		$(document).unbind('country:hover',eventCountryHover);
+		$(document).unbind('country:unhover',eventCountryUnhover );
+
+		$(document).unbind('country:color:set', eventSetCountryColor);
+		$(document).unbind('country:color:unset', eventUnsetCountryColor);
+
+		$(document).unbind('navigation:zoom:in', eventNavigationZoomIn);
+		$(document).unbind('navigation:zoom:out', eventNavigationZoomOut);
+	}
+
+	function init() {
+		scene = new THREE.Scene();
+		projector = new THREE.Projector();
+		//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
+		//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+		camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
+		renderer = new THREE.WebGLRenderer();
+		renderer.setSize( width, height );                                                                                                
+		//renderer.setClearColorHex(0x000000, 0.0);
+		//renderer.setClearColor(0x000000, 0.0);
+		renderer.setClearColor(arrayColorToColor(obj.bgColor), 1.0);
+		renderer.autoClear = false;
+		renderer.setBlending(THREE.AdditiveBlending);
+
+		scene.add(camera);
+		camera.position.z = distance;
+
+		//registerEventListener()
+
+		$(containerId).append($(renderer.domElement));
+		console.log("GLOBE initialized.");
+	}
+
+	function render() {
+		zoom(0);
+		rotation.x += (target.x - rotation.x) * 0.1 * obj.rotSpeedFac;
+		rotation.y += (target.y - rotation.y) * 0.1 * obj.rotSpeedFac;
+		distance += (obj.distanceTarget - distance) * 0.3;
+		camera.position.x = distance * Math.sin(rotation.x) * Math.cos(rotation.y);
+		camera.position.y = distance * Math.sin(rotation.y);
+		camera.position.z = distance * Math.cos(rotation.x) * Math.cos(rotation.y);
+
+		camera.lookAt(scene.position);
+		camera.updateProjectionMatrix();
+
+		renderer.clear();
+		renderer.render(scene, camera);
+		renderer.render(atmosphereScene, camera);
+		renderer.render(particleScene, camera);
+	}
+
+	function animate() {
+		if (enabled) {
+			requestAnimationFrame(animate);                                                                                                                           
+			TWEEN.update();
+			tic+=1;
+			shaders.particle.uniforms.now.value = tic;
+			shaders.particle.uniforms.randomu.value = Math.random();
+
+			// Wait 50 frames before sending initialized event.
+			if (tic == 50) {
+				$(document).trigger('globe:initialized',[]);
+			}
+
+			render();
+		}
+	}
+
+	/* Zoom/Scale globe and atmosphere within given boundaries. 
+	 * This is called for every frame render. */
+	function zoom(delta) {
+		obj.distanceTarget -= delta;
+		var min = RADIUS * 1.1;
+		var max = RADIUS * 5;
+		obj.distanceTarget = obj.distanceTarget > max ? max : obj.distanceTarget;
+		obj.distanceTarget = obj.distanceTarget < min ? min : obj.distanceTarget;
+
+		// scale atmosphere according to zoom level. This makes atmosphere more realistic in deep zoom mode.
+		var scaleFactor = 1.0 - ((distance - min) / (max-min) );
+		atmosphere.scale.x = atmosphere.scale.y = atmosphere.scale.z = (ATMOSPHERE_SIZE_FACTOR + (scaleFactor * 0.05)) ;
+	}
+
+	function onMouseDown(event) {
+		/* Check whether mouse is over sphere. Only in this case the spehere should be rotatable */
+		var intersects = getIntersects(event);
+		if (intersects.length >= 1) {
+			//event.preventDefault();
+			$(containerId).bind('mousemove',undefined, onMouseMove);
+			$(containerId).bind('mouseup',undefined, onMouseUp);
+			$(containerId).bind('mouseout',undefined, onMouseOut);
+			mouseOnDown.x = - event.clientX;
+			mouseOnDown.y = event.clientY;
+			mouseOnDown.country = hovered_cc;
+			targetOnDown.x = target.x;
+			targetOnDown.y = target.y;
+			container.style.cursor = 'move';
+		}
+	}
+
+	function convert_from_polar(polar) {
+		var tmp = Math.cos(polar.y);
+		var depth = polar.z;
+		var ret = new THREE.Vector3(depth * tmp * Math.sin( polar.x), depth * Math.sin(polar.y), depth * tmp * Math.cos(polar.x));
+		return ret;
+	}
+
+	function convert_to_polar(coord) {
+
+		var x = Math.atan( coord.x/ coord.z);
+		var y = Math.atan( (coord.y * Math.cos(x)) / coord.z);
+
+		x = x * 180 / Math.PI;
+		y = y * 180 / Math.PI;
+
+		// var y = Math.asin(coord.y / RADIUS);
+		//var x = Math.asin( ( coord.x/(RADIUS * Math.acos(y)) ) );
+		//
+		if (coord.z < 0) {
+			x = x+180;
+		} else {
+			y = -y;
+		}
+
+		x = x - 90;
+
+		if (x > 180)
+			x = x - 360;
+
+		var ret = new THREE.Vector2(x,y);
+		return ret;
+	}
+
+	function setHoverCountry(iso) {
+		try {
+			if (iso != hovered_cc) {
+				hovered_cc = iso;
+				var geo = GLOBE.GEO.lookup_geo_points(iso);
+				geo[0]=(geo[0] + 180) /360;
+				geo[1]=(geo[1] + 90) / 180;
+
+				shaders.earth.uniforms.mousex.value = geo[0];
+				shaders.earth.uniforms.mousey.value = geo[1];
+			}
+		} catch (err) {
+
+		}
+	}
+
+	function updatePolarCoordinates(vec) {
+		var cc = GLOBE.GEO.lookup_country(vec.x,vec.y);
+
+		var v = new THREE.Vector2( (vec.x + 180) / 360, (vec.y+90)/180);
+		$(document).trigger('polar:hover', [ Math.round(vec.x * 10)/10, Math.round(vec.y * 10) /10 ]);
+
+		updateHoverHandler(cc);
+
+		shaders.earth.uniforms.mousex.value = v.x;
+		shaders.earth.uniforms.mousey.value = v.y;
+	}
+
+	function updateHoverHandler(cc) {
+		if (cc != hovered_cc) {
+			hovered_cc = cc;
+
+			if (cc == NO_COUNTRY) {
+				shaders.earth.uniforms.mousex.value = 0;
+				shaders.earth.uniforms.mousey.value = 0;
+				cc = null;
+			}
+
+			if (isNaN(cc) || cc === null) {
+				$(document).trigger('country:hover',cc);
+			} else {
+				console.warn("Please map country id: " + cc);
+			}
+		}
+	}
+
+	function getHoveredCountry() {
+		return hovered_cc;
+	}
+
+	function getIntersects(event) {
+		event.preventDefault();
+		var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
+		projector.unprojectVector( vector, camera );
+		var ray = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
+		var intersects = ray.intersectObjects( [ sphere ] );
+		return intersects;
+	}
+
+	function onMouseBrowse(event) {
+		if (overRenderer) {
+			if (lightMode.current == lightMode.MOUSE) {
+				/* Set light vector based on mouse position. Mouse emits light. */
+				var lightv = new THREE.Vector3( (event.clientX * 2.0/window.innerWidth)-1.0, (event.clientY *-2.0 /window.innerHeight) +1.0,1.0);
+				shaders.earth.uniforms.lightvector.value = lightv;
+				shaders.atmosphere.uniforms.lightvector.value = lightv;
+			}
+
+			/* Set polar coordinates of mouse pointer. */
+			var intersects = getIntersects(event);
+			if (intersects.length == 1) {
+				overGlobe = true;
+				var i = 0;
+				var vec = new THREE.Vector3(intersects[i].point.x,intersects[i].point.y,intersects[i].point.z);
+				mouse_polar = convert_to_polar(vec);
+				updatePolarCoordinates(mouse_polar);
+				if (mouseMoveHandler !== undefined) {
+					mouseMoveHandler(event);
+				}
+			} else {
+				if (overGlobe) {
+					overGlobe = false;
+					updateHoverHandler(NO_COUNTRY);
+					if (mouseMoveHandler !== undefined) {
+						mouseMoveHandler(undefined);
+					}
+				}
+			}
+		}
+	}
+
+	function moveToCountry(iso) {
+		var po = GLOBE.GEO.lookup_geo_points(iso);
+		return moveToPolar(po[0],po[1]);
+	}
+
+	function moveToPolar(lon,lat) {
+		console.log("Moving to " + lon + "," + lat);
+		var camt = convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lon), degree_to_radius_latitude(lat),RADIUS*2));
+
+		target.x = degree_to_radius_longitude(lon);
+		target.y = degree_to_radius_latitude(lat);
+
+		camera.position = camt;
+		camera.lookAt(scene.position);
+		return [ target.x , target.y ];
+	}
+
+	function getCamTargetPos() {
+		return [ target.x, target.y ];
+	}
+
+	function setCamTargetPos(x,y) {
+		target.x = x;
+		target.y = y;
+	}
+
+	function onMouseMove(event) {
+		mouse.x = - event.clientX;
+		mouse.y = event.clientY;
+		var zoomDamp = distance/1000;
+		target.x = targetOnDown.x + (mouse.x - mouseOnDown.x) * 0.005 * zoomDamp;
+		target.y = targetOnDown.y + (mouse.y - mouseOnDown.y) * 0.005 * zoomDamp;
+		target.y = target.y > PI_HALF ? PI_HALF : target.y;
+		target.y = target.y < - PI_HALF ? - PI_HALF : target.y;
+	}
+
+	function onMouseUp(event) {
+		$(containerId).unbind('mousemove', onMouseMove);
+		$(containerId).unbind('mouseup', onMouseUp);
+		$(containerId).unbind('mouseout', onMouseOut);
+		container.style.cursor = 'auto';
+		//createSourceParticle(mouse_polar.x,mouse_polar.y);
+		//console.log(mouse_polar.x + " " + mouse_polar.y);
+		if (hovered_cc == mouseOnDown.country) {
+			$(document).trigger('country:click',hovered_cc);
+		}
+	}
+
+	function onMouseOut(event) {
+		$(containerId).unbind('mousemove', onMouseMove);
+		$(containerId).unbind('mouseup', onMouseUp);
+		$(containerId).unbind('mouseout', onMouseOut);
+	}
+
+	function onMouseWheel(event) {
+		//event.preventDefault();
+		//console.log("Mouse Wheel " + event);
+		if (overRenderer) {
+			zoom(event.originalEvent.wheelDeltaY * 0.3);
+		} 
+		return false;
+	}
+
+	//TODO: Change to size of container.
+	function onWindowResize( event ) {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+	}
+
+	function stop() {
+		enabled = false;
+		removeEventListeners();
+		renderer.clear();
+	}
+
+	function start() {
+		enabled = true;
+		addEventListeners();
+		animate();
+	}
+
+	function getContainerId() {
+		return obj.containerId;
+	}
+
+	function setMouseMoveHandler(f) {
+		mouseMoveHandler = f;
+	}
+
+	function setParticleSize(size) {
+		obj.particleSize = size;
+	}
 	try {
 		var obj = {};
 		/* container variables */
@@ -51,7 +1397,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var time = new Date();
 
 		/* country map */
-		var countryTweenMap= {}
+		var countryTweenMap= {};
 
 		/* texture URLs */
 		obj.prefix=$(cid).attr('prefix');
@@ -71,7 +1417,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var tic = 0;
 		var mouse_polar;
 		var hovered_cc; /* country iso code that is currently hovered by the nouse . */
-		var mouseMoveHandler = undefined;
+		var mouseMoveHandler = undefined; /* for documentation purposes */
 
 		/* particle settings */
 		var particles; /* Particle geometry. */
@@ -82,7 +1428,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.particleColor = [128,255,128 ];	/* DAT-GUI */
 		obj.particleIntensity = 1.0;
 		obj.particleBlending = THREE.AdditiveBlending;
-		obj.particleColorFilter = function(x) { return x; }
+		obj.particleColorFilter = function(x) { return x; };
 
 		/* Light and color settings */
 		obj.brightness = 1.0; 	/* DAT_GUI earth uniform */
@@ -128,1331 +1474,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		var overGlobe = false; /* is mouse over globe */
 		var overRenderer = true; /* is mouse over renderer */
 
-
-		/* Helper function to convert a color object */
-		function colorToVector(c) {
-			return new THREE.Vector3(c.r,c.g,c.b);
-		}
-
-		/* Helper function to convert a color object */
-		function colorToArrayColor(c) {
-			return [c.r *255,c.g *255,c.b *255];
-		}
-
-		/* Helper function to convert a color object */
-		function arrayColorToColor(c) {
-			return new THREE.Color(c[0]/256,c[1]/256,c[2]/256);
-		}
-
-		/* Helper function to invert a color object */
-		function invertColor(c) {
-			if (Array.isArray(c)) {
-				return [ 255 - c[0], 255 - c[1], 255 - c[2] ];
-			} else {
-				return new THREE.Color( 1.0 - c.r, 1.0 -c.g, 1.0 -c.b );
-			}
-		}
-				
-		/* Helper function to convert a color object 
-		 * params:	c - 8bit Color values [ 255,255,255 ]
-		 * 		i - normalized alpha value (0 - 1)
-		 * */
-		function arrayColorToVector(c,i) {
-			return new THREE.Vector4(c[0]/256,c[1]/256,c[2]/256,i);
-		}
-
-		/* Helper function to convert a color object */
-		function arrayColorToVector3(c) {
-			return new THREE.Vector3(c[0]/256,c[1]/256,c[2]/256);
-		}
-
-		function applyDatGuiControlConfiguration(gui) {
-			var g = gui.addFolder('Globe');
-			var p = g.addFolder('Particles');
-			p.add(obj,'particleSize',1,100);
-			p.add(obj,'particleLifetime',1,1000);
-			p.addColor(obj,'particleColor').onChange(function(value) {
-				for (var i = 0; i < particle_count;i++) {
-					shaders['particle'].attributes.color.value[i] = arrayColorToVector(obj.particleColorFilter(value),1.0);
-				}
-				//shaders['particle'].attributes.needsUpdate = true;
-			});
-
-			var c = g.addFolder('Countries');
-			c.add(obj,'colorIntensity',0,1.0).onFinishChange(function(value) { 
-				shaders['earth'].uniforms.cintensity.value = value; 
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-
-			c.add(obj,'borderIntensity',0,1.0).onFinishChange(function (value) {
-				shaders['earth'].uniforms.bintensity.value = value; 
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-
-			c.addColor(obj,'bColor').onChange(function(val) {
-				obj.setBorderColor(arrayColorToColor(val));
-			});
-
-			c.addColor(obj,'hoverColor').onChange(function(value) { 
-				obj.setCountryHoverColor(arrayColorToColor(value));
-			});
-			c.add(obj,'clearCountryColors');
-
-			var e = g.addFolder('Earth');
-			e.addColor(obj,'lightColor').onChange(function(val) {
-				obj.setLightColor(arrayColorToColor(val));
-			});
-			e.addColor(obj,'aColor').onChange(function(val) {
-				obj.setAtmosphereColor(arrayColorToColor(val));
-			});
-			e.addColor(obj,'bgColor').onChange(function(val) {
-				obj.setBackgroundColor(arrayColorToColor(val));
-			});
-			obj.dayofyear = 1.0;
-			e.add(obj,'dayofyear',1.0,356.0).onFinishChange(function (value) {
-				shaders['earth'].uniforms.dayofyear.value = value; 
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-			obj.hourofday = 0.0;
-			e.add(obj,'hourofday',0.0,24.0).onFinishChange(function (value) {
-				shaders['earth'].uniforms.hourofday.value = value; 
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-
-			e.add(obj,'disableDaylight');
-			e.add(obj,'enableDaylight');
-
-			e.add(obj,'stop');
-			e.add(obj,'start');
-			e.add(obj,'brightness',0,1.0).onFinishChange(function(value) {
-				shaders['earth'].uniforms.brightness.value = value;
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-
-			e.add(obj,'colorization',0,1.0).onFinishChange(function(value) {
-				shaders['earth'].uniforms.color_intensity.value = value;
-				shaders['earth'].uniforms.needsUpdate = true;
-			});
-
-			e.add(obj,'lightOn');
-			e.add(obj,'lightOut');
-			e.add(obj,'setBlackMode');
-			e.add(obj,'setWhiteMode');
-
-			var t = g.addFolder('Pillars');
-			t.add(obj,'clearPillars');
-
-			var l = g.addFolder('Lines');
-			l.add(obj,'clearConnections');
-		}
-
-		function unsetCountryColor(opco) {
-			if (opco === undefined || opco == "ALL") {
-				this.clearCountryColors();
-			} else {
-				this.setCountryColor(opco,new THREE.Color(0x000000));
-			}
-		}
-
-
-		function setRotationSpeed(fac) {
-			obj.rotSpeedFac = fac;
-		}
-
-		/*
-		 * params:  color - THREE.Color()
-		 * */
-		function setBackgroundColor(color) {
-			obj.bgColor = colorToArrayColor(color);
-			renderer.setClearColor(color, 1);
-			shaders['earth'].uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
-			shaders['atmosphere'].uniforms.bgcolor.value = arrayColorToVector3(obj.bgColor);
-			shaders['earth'].uniforms.needsUpdate = true;
-			shaders['atmosphere'].uniforms.needsUpdate = true;
-		}
-
-		function setCountryHoverColor(color) {
-			obj.hoverColor = colorToArrayColor(color);
-			shaders['earth'].uniforms.selection.value = arrayColorToVector(obj.hoverColor,0.4);
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		/*
-		 * params:  color - THREE.Color()
-		 * */
-		function setAtmosphereColor(color) {
-			obj.aColor = colorToArrayColor(color);
-			shaders['atmosphere'].uniforms.acolor.value = arrayColorToVector3(obj.aColor);
-			shaders['earth'].uniforms.acolor.value = arrayColorToVector3(obj.aColor);
-			shaders['atmosphere'].uniforms.needsUpdate = true;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		/*
-		 * params:  color - THREE.Color()
-		 * */
-		function setBorderColor(color) {
-			obj.bColor = colorToArrayColor(color);
-			shaders['earth'].uniforms.bcolor.value = arrayColorToVector3(obj.bColor);
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function setBorderIntensity(v) {
-			borderIntensity = v;
-			shaders['earth'].uniforms.bintensity.value = borderIntensity;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function setColorIntensity(v) {
-			shaders['earth'].uniforms.color_intensity.value = v;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function setCountryColorIntensity(v) {
-			colorIntensity = v;
-			shaders['earth'].uniforms.cintensity.value = colorIntensity; 
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function setWhiteMode() {
-			obj.particleColorFilter = invertColor;
-			obj.particleBlending = THREE.SubtractiveBlending;
-
-			setBorderColor(COLOR_BLACK);
-			setBackgroundColor(COLOR_WHITE);
-			setAtmosphereColor(new THREE.Color(0xaaaaaa));
-			setBorderIntensity(1.0);
-			setColorIntensity(0.0);
-			setCountryColorIntensity(1.0);
-			setLightColor(new THREE.Color(0x555555));
-
-			buildParticles();
-			renderer.setClearColor(COLOR_WHITE, 1.0);
-			renderer.clear();
-		}
-
-		function setBlackMode() {
-			obj.particleColorFilter = function(d) {return d; }
-			obj.particleBlending = THREE.AdditiveBlending;
-
-			setBorderColor(COLOR_WHITE);
-			setBackgroundColor(COLOR_BLACK);
-			setAtmosphereColor(new THREE.Color(0x7f7fff));
-			setBorderIntensity(DEFAULT_BORDER_INTENSITY);
-			setColorIntensity(1.0);
-			setCountryColorIntensity(DEFAULT_COLOR_INTENSITY);
-			setLightColor(DEFAULT_LIGHT_COLOR);
-
-			buildParticles();
-			renderer.setClearColor(COLOR_BLACK, 1.0);
-			renderer.clear();
-		}
-
-		/* Sets country color for list of iso codes:
-		 * params:	iso - array of iso codes [ 'DE','ES', ... ]
-		 * 		color - THREE.Color()
-		 * 		alpha - alpha value 0 - 1
-		 * 		index - country index id. Only used if iso code not et mapped.
-		 * */
-		function setCountryColor(iso,color,alpha,index) {
-			var ma;
-
-			if (iso instanceof Array) {
-				ma = iso;
-			} else {
-				ma = [iso];
-			}
-
-			if (index === undefined) {
-				index = 0;
-			}
-
-			if (alpha === undefined) {
-				alpha = 1.0;
-			}
-
-			var shader = shaders['earth'].uniforms.countrydata.value;
-
-			for (var x = 0; x < ma.length;x++) {
-				try {
-					var c = GLOBE.GEO.country_to_index(ma[x].toUpperCase());
-					var o = index * 256;
-					var i = c + o;
-					shader.image.data[ i * 4 + 0] = color.r * 255;
-					shader.image.data[ i * 4 + 1] = color.g * 255;
-					shader.image.data[ i * 4 + 2] = color.b * 255;
-					shader.image.data[ i * 4 + 3] = alpha * 255;
-					_switchCountryColor(c);
-				} catch (err) {
-					console.log("Unknown country: " + ma[x] + ": "+ err);
-				}
-			}
-		}
-
-		function immediateClearCountryColors() {
-			var tex =  createCountryDataTexture();
-			shaders['earth'].uniforms.countrydata.value = tex;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function clearCountryColors() {
-			var shader = shaders['earth'].uniforms.countrydata.value;
-			for (var i = 0; i < 256; i ++) {
-				/*
-				shader.image.data[i * 4 + 0] = 0;
-				shader.image.data[i * 4 + 1] = 0;
-				shader.image.data[i * 4 + 2] = 0; */
-				shader.image.data[i * 4 + 3] = 0;
-				_switchCountryColor(i);
-			}
-		}
-
-		function _switchCountryColor(idx) {
-			var map = shaders['earth'].uniforms.countrydata.value;
-
-			if (countryTweenMap[idx] !== undefined) {
-				countryTweenMap[idx].stop();
-				delete countryTweenMap[idx];
-			}
-
-			if ( 	map.image.data[ (256 + idx) * 4 + 0] == map.image.data[ (idx) * 4 + 0] &&
-				map.image.data[ (256 + idx) * 4 + 1] == map.image.data[ (idx) * 4 + 1] &&
-				map.image.data[ (256 + idx) * 4 + 2] == map.image.data[ (idx) * 4 + 2] &&
-				map.image.data[ (256 + idx) * 4 + 3] == map.image.data[ (idx) * 4 + 3]) {
-				return;
-			}
-
-			var tween = new TWEEN.Tween( { 
-				r: map.image.data[ (256 + idx) * 4 + 0],
-				g: map.image.data[ (256 + idx) * 4 + 1],
-				b: map.image.data[ (256 + idx) * 4 + 2],
-				a: map.image.data[ (256 + idx) * 4 + 3]
-			}).to ({
-				r: map.image.data[ (idx) * 4 + 0],
-				g: map.image.data[ (idx) * 4 + 1],
-				b: map.image.data[ (idx) * 4 + 2],
-				a: map.image.data[ (idx) * 4 + 3]
-			},500).onComplete(function() {
-				delete countryTweenMap[idx];
-			}).onUpdate( function() {
-				map.image.data[ (256 + idx) * 4 + 0] = this.r;
-				map.image.data[ (256 + idx) * 4 + 1] = this.g;
-				map.image.data[ (256 + idx) * 4 + 2] = this.b;
-				map.image.data[ (256 + idx) * 4 + 3] = this.a;
-				map.needsUpdate = true;
-			}).easing( TWEEN.Easing.Linear.EaseNone )
-			.start();
-			countryTweenMap[idx] = tween;
-		}
-
-		function createCountryDataTexture() {
-			//var text = THREE.ImageUtils.generateDataTexture(256,2,new THREE.Color(0x000000));
-			//var text = new THREE.DataTexture( a, 256, 2, THREE.RGBFormat );
-			var width = 256;
-			var height = 2;
-			var size = width * height;
-			var data = new Uint8Array( 4 * size );
-
-			for ( var i = 0; i < size; i ++ ) {
-				data[ i * 4 + 0 ] = 0;
-				data[ i * 4 + 1 ] = 0;
-				data[ i * 4 + 2 ] = 0;
-				data[ i * 4 + 3 ] = 0;
-			}
-
-			var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
-			text.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
-			text.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-			//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-			text.needsUpdate = true;
-			return text;
-		};
-
-		function createGeoDataTexture() {
-			var width = 2*256;
-			var height =2*128;
-			var size = width * height;
-			var data = new Uint8Array( size );
-
-			for ( var i = 0; i < size; i ++ ) {
-				//data[i] = Math.floor((size/i) *255);
-				data[i] = 255;
-			}
-			var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
-			text.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
-			text.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-			text.needsUpdate = true;
-			return text;
-		};
-
-		function calibrate_longitude(x) {
-			x += 90;
-			if (x > 180)
-				x-=360;
-			return x;
-		}
-
-		function decalibrate_longitude(x) {
-			x -= 90;
-			return x;
-		}
-
-		function degree_to_radius_longitude(v) {
-			return calibrate_longitude(v)*(( 1 /360.0) * 2 * Math.PI);
-		}
-
-		function degree_to_radius_latitude(v) {
-			return -v*(( 1 /360.0) * 2 * Math.PI);
-		}
-
-		function radius_to_degree_longitude(v) {
-			return (v / (( 1 /360.0) * 2 * Math.PI));
-		}
-
-		function radius_to_degree_latitude(v) {
-			return -(v / (( 1 /360.0) * 2 * Math.PI));
-		}
-
-		function buildParticles() {
-			particleScene = new THREE.Scene();
-			var shader = shaders['particle'];
-			var longs = shader.attributes.longitude.value;
-			var lats = shader.attributes.latitude.value;
-			var destx = shader.attributes.longitude_d.value;
-			var desty = shader.attributes.latitude_d.value;
-			var lifetimes = shader.attributes.lifetime.value;
-			var created = shader.attributes.created.value;
-			var sizes = shader.attributes.size.value;
-			var random = shader.attributes.size.value;
-			var color = shader.attributes.color.value;
-			var hf = shader.attributes.heightfactor.value;
-			//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
-
-			particles = new THREE.Geometry();
-			for (var i = 0; i < particle_count;i++) {
-
-				particles.vertices[i] =  new THREE.Vector3(0,0,0);
-				longs[i] = degree_to_radius_longitude(0);
-				lats[i] = degree_to_radius_latitude(0);
-				created[i] = tic;
-				destx[i] = degree_to_radius_longitude(0);
-				desty[i] = degree_to_radius_latitude(0);
-				lifetimes[i] = 0;
-				sizes[i] = 0;
-				random[i] = 0.5;
-				color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
-				hf[i] = 1.0;
-			}
-
-			var material = new THREE.ShaderMaterial ( {
-				uniforms: shader.uniforms,
-				attributes: shader.attributes,
-				vertexShader: shader.vertexShader,
-				fragmentShader: shader.fragmentShader,
-				transparent: true,
-				blending: obj.particleBlending,
-				depthTest: true,
-				wireframe: true,
-				depthWrite: false //Magic setting to make particles not clipping ;)
-			});
-
-			particleSystem = new THREE.ParticleSystem(
-				particles,
-				material
-			);
-
-			particleSystem.dynamic=true;
-			particleScene.add(particleSystem);
-			console.log("Particles initialized.");
-		}
-
-		function createSourceParticle(x,y,c,hf) {
-			createMoveParticle(x,y,x,y,c,hf);
-		}
-
-		/* Create a particle that moves from (x,y) to (dx,dy)
-		 * x  - origin longitude
-		 * y  - origin latitude
-		 * dx - target longitude
-		 * dy - target latitude
-		 * c  - color of marticle in [ 255,255,255 ] color notation 
-		 * hf - height factor where 1 is standard height */
-		function createMoveParticle(x,y,dx,dy,c,hf) {
-			createParticle(x,y,dx,dy,obj.particleLifetime,obj.particleSize,c,hf);
-		}
-
-		function createParticle(x,y,dx,dy,lifetime,particleSize,c,hf) {
-			if (particles !== undefined) {
-				var shader = shaders['particle'];
-				var longs = shader.attributes.longitude.value;
-				var lats = shader.attributes.latitude.value;
-				var destx = shader.attributes.longitude_d.value;
-				var desty = shader.attributes.latitude_d.value;
-				var lifetimes = shader.attributes.lifetime.value;
-				var created = shader.attributes.created.value;
-				var sizes = shader.attributes.size.value;
-				var random = shader.attributes.random.value;
-				var color = shader.attributes.color.value;
-				var heightfactor = shader.attributes.heightfactor.value;
-
-				var i = particle_cursor;
-
-
-				if ( (tic - created[i]) < lifetimes[i] ) {
-					console.log("Particle buffer overflow ;)");
-				}
-
-				longs[i] = (degree_to_radius_longitude(x));
-				lats[i] = (degree_to_radius_latitude(y));
-				created[i] = (tic);
-				destx[i] = (degree_to_radius_longitude(dx));
-				desty[i] = (degree_to_radius_latitude(dy));
-				lifetimes[i] = (lifetime);
-				sizes[i] = particleSize;
-				random[i] = Math.random();
-
-				if (c !== undefined && c != null) {
-					color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
-				}
-
-				if (hf !== undefined && hf != null) {
-					heightfactor[i] = hf;
-				}
-
-				shader.attributes.color.needsUpdate=true;
-				shader.attributes.heightfactor.needsUpdate=true;
-				shader.attributes.longitude.needsUpdate=true;
-				shader.attributes.latitude.needsUpdate=true;
-				shader.attributes.longitude_d.needsUpdate=true;
-				shader.attributes.latitude_d.needsUpdate=true;
-				shader.attributes.created.needsUpdate=true;
-				shader.attributes.lifetime.needsUpdate=true;
-				shader.attributes.size.needsUpdate=true;
-				shader.attributes.random.needsUpdate=true;
-
-				particle_cursor++;
-
-				if (particle_cursor > particle_count) {
-					particle_cursor = 0;
-				}
-			}
-		}
-
-		/* Lazy initialized hi-res spehere geometry. */
-		function getSphereGeometryHiRes() {
-			if (sphereGeometryHiRes === undefined) {
-				sphereGeometryHiRes = new THREE.SphereGeometry( RADIUS,80,40 );
-			}
-
-			return sphereGeometryHiRes;
-		}
-
-		/* Lazy initialized low-res spehere geometry. */
-		function getSphereGeometryLowRes() {
-			if (sphereGeometryLowRes === undefined) {
-				sphereGeometryLowRes = new THREE.SphereGeometry( RADIUS,40,20 );
-			}
-			return sphereGeometryLowRes;
-		}
-
-		/** Create the earth sphere object.  */
-		function buildSphere() {
-			var shader = shaders['earth'];
-
-			var texture = THREE.ImageUtils.loadTexture(atlas_url);
-			var countrymap = THREE.ImageUtils.loadTexture(cmap_url);
-
-			//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-			countrymap.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
-			countrymap.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-
-			shader.uniforms['texture'].value = texture;
-			shader.uniforms['countrymap'].value = countrymap;
-
-			var sphereMaterial = new THREE.ShaderMaterial ( {
-				uniforms: shader.uniforms,
-				vertexShader: shader.vertexShader,
-				fragmentShader: shader.fragmentShader
-			} );
-
-			sphere = new THREE.Mesh( 
-				getSphereGeometryHiRes(),
-				sphereMaterial
-			);
-
-			scene.add(sphere);
-			console.log("GLOBE sphere initialized.");
-		}
-
-		/** Create the earth atmosphere object. */
-		function buildAtmosphere() {
-			atmosphereScene = new THREE.Scene();
-			var shader = shaders['atmosphere'];
-			var atmosphereMaterial = new THREE.ShaderMaterial ( {
-				uniforms: shader.uniforms,
-				vertexShader: shader.vertexShader,
-				fragmentShader: shader.fragmentShader,
-				side: THREE.BackSide,
-				transparent: true,
-				opacity: 1.0
-
-			} );
-
-			atmosphere = new THREE.Mesh(
-				getSphereGeometryLowRes(),
-				atmosphereMaterial
-			);
-
-			atmosphere.scale.x = atmosphere.scale.y = atmosphere.scale.z = ATMOSPHERE_SIZE_FACTOR;
-			//scene.add(atmosphere);
-			atmosphereScene.add(atmosphere);
-			console.log("Atmosphere initialized");
-		}
-
-		/* Initialize geometry required by data pillars. */
-		function buildDataPillars() {
-			pillarGeometry = new THREE.CubeGeometry(0.75, 0.75, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
-			for (var i = 0; i < pillarGeometry.vertices.length; i++) {
-				var vertex = pillarGeometry.vertices[i];
-				//vertex.position.z += 0.5;
-				vertex.z += 0.5;
-			}
-			console.log("Data Pillars initialized.");
-		}
-
-		/* Add a data pillar at given geo-coordinates.
-		 *  lat - Latitude
-		 *  lng - Longitude
-		 *  factor - normalized size and color factor (0.0 - 1.0) 
-		 *  */
-		function addDataPillar(lat,lng,factor) {
-			return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
-		}
-
-		/* Add a data pillar for a given country.
-		 *  iso -  country iso code.
-		 *  factor - normalized size and color factor (0.0 - 1.0)
-		 *  */
-		function addCountryPillar(iso,factor) {
-			var p;
-			if (countryPillars[iso] !== undefined) {
-				p = countryPillars[iso];
-				changePillarFactor(p,factor);
-			} else {
-				var co = GLOBE.GEO.lookup_geo_points(iso);
-				//console.log("" + iso + " (" + co[0] + "," + co[1] + ")");
-				p = addDataPillar(co[0],co[1],factor);
-				countryPillars[iso] = p;
-			}
-			return p;
-		}
-
-		/* Add a connection line netween two countries:
-		 *  from - iso country code of source country.
-		 *  to   - iso country code of destination country.
-		 *  intensity - thickness (1.0 is standard)
-		 *  */
-		function connectCountry(from,to,intensity) {
-			var f = GLOBE.GEO.lookup_geo_points(from)
-			var t = GLOBE.GEO.lookup_geo_points(to);
-			return connectPolar(f[0],f[1], t[0], t[1],intensity);
-		}
-
-		function connectPolar(x,y,dx,dy,intensity) {
-			return createLine(x,y,dx,dy,intensity);
-		}
-
-		function addPolarConnections(data,i) {
-			return createLines(data,i);
-		}
-
-		function createLine(geo_x,geo_y,geo_dx,geo_dy, intensity) {
-			return createLines([[geo_x,geo_y,geo_dx,geo_dy]],intensity);
-		}
-
-		function createLines(data,intensity) {
-			var lineGeometry = new THREE.Geometry();
-			var inte = intensity || 1.0;
-			var idx;
-			for (idx = 0; idx < data.length; idx++) {
-				var l = data[idx]
-				var geo_x = l[0];
-				var geo_y = l[1];
-				var geo_dx = l[2];
-				var geo_dy = l[3];
-
-				var from = new THREE.Vector3(degree_to_radius_longitude(geo_x),degree_to_radius_latitude(geo_y),RADIUS);
-				var to = new THREE.Vector3(degree_to_radius_longitude(geo_dx),degree_to_radius_latitude(geo_dy),RADIUS);
-
-				var lp = LINE_POINTS -1;
-
-				try {
-					for (var i = 0; i <= lp; i++) {
-							var age = i/lp;
-							var v = new THREE.Vector3(0,0,0);
-							v.x = from.x*(1.0-age) + to.x * age;
-							v.y = from.y*(1.0-age) + to.y * age;
-							v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
-							var t = convert_from_polar(v);
-							//console.log("(" + t.x +"," + t.y + "," + t.z + ")");
-							lineGeometry.vertices.push(t);
-					}
-				} catch (e) {
-					console.log(" Adding line failed: " + e);
-				}
-			}
-			console.log("Added : " + idx)
-
-			var lineMaterial = new THREE.LineBasicMaterial( { 
-					color: 		LINE_COLOR, 
-					opacity: 	inte, 
-					transparent: 	true,
-					linewidth: 1 } 
-			);
-
-			var line = new THREE.Line( lineGeometry, lineMaterial, THREE.LineStrip );
-			line.position.x = 0;
-			line.position.y = 0;
-			line.position.z = 0;
-
-			lines.push(line);
-			scene.add(line);
-			return line;
-		}
-
-		function removeConnection(con) {
-			scene.remove(con);
-		}
-
-		function clearConnections() {
-			for (var i = 0; i < lines.length; i ++) {
-				scene.remove(lines[i]);
-			}
-			lines = [];
-		}
-
-		function _setPillarData(factor) {
-			var pillar = this;
-			this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
-			var tween = new TWEEN.Tween( { 
-						z: pillar.scale.z
-					} )
-					.to( {
-						z: -((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE)
-					}, 200 )
-					.easing( TWEEN.Easing.Linear.EaseNone )
-					.onUpdate( function () {
-						pillar.scale.z = this.z;
-						pillar.needsUpdate = true;
-					} );
-			tween.start();
-		}
-
-		function addPillar(lng,lat, size,color) {
-			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
-
-			var pillar = new THREE.Mesh(pillarGeometry, new THREE.MeshBasicMaterial( { color: color }));
-
-			pillar.position = pos;
-
-			pillar.lookAt(scene.position);
-			pillar.scale.z = -((size*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
-			blendPillar(pillar,0.0,1.0);
-			pillars.push(pillar);
-			scene.add(pillar);
-			pillar.setData = _setPillarData;
-			return pillar;
-		}
-
-
-		function blendPillar(pillar,f_fac,t_fac,complete) {
-
-			var tween = new TWEEN.Tween( { 
-						x: pillar.scale.x* f_fac,
-						y: pillar.scale.y* f_fac,
-						z: pillar.scale.z* f_fac
-					} )
-					.to( { 	x: pillar.scale.x*t_fac, 
-						y: pillar.scale.y*t_fac,
-						z: pillar.scale.z*t_fac
-					
-					
-					}, 1000 )
-					.easing( TWEEN.Easing.Linear.EaseNone )
-					.onUpdate( function () {
-						pillar.scale.z = this.z;
-						pillar.scale.x = this.x;
-						pillar.scale.y = this.y;
-						pillar.needsUpdate = true;
-					} );
-
-			if (complete !== undefined) {
-				tween = tween.onComplete(complete);
-			}
-
-			tween.start();
-		}
-
-		function lightOut() {
-			changeColorMode(0.4,0.0);
-		}
-
-		function lightOn() {
-			changeColorMode(1.0,1.0);
-		}
-
-		function changeColorMode(bn,ci) {
-			var tween = new TWEEN.Tween( {
-					b: shaders['earth'].uniforms.brightness.value,
-					c: shaders['earth'].uniforms.color_intensity.value
-			}).to({ 	b: bn,
-					c: ci
-			}, 500)
-			.easing(TWEEN.Easing.Linear.EaseNone )
-			.onUpdate(function() {
-				shaders['earth'].uniforms.brightness.value = this.b;
-				shaders['earth'].uniforms.color_intensity.value = this.c;
-				shaders['earth'].uniforms.needsUpdate = true;
-			}).start();
-		}
-
-		function switchDataPillars(data) {
-			clearPillars(function () {
-				addDataPillars(data);
-			});
-		}
-
-		/* Creates a static set of Pillars based on the data array. All pillars are created as a big geometry which improves rendering performance.
-		 * data array format : [ [long,lat,size_factor], [...], ... ]
-		 * These pillars can not be split up and following to that can only be removed from scene at once.
-		 * */
-		function addDataPillars(data) {
-			var max = 0;
-			for (var i = 0; i < data.length;i++) {
-				if (data[i][2] > max) {
-					max = data[i][2];
-				}
-			}
-			var pg = pillarGeometry;
-
-			/* Mother geometry */
-			var subgeo = new THREE.Geometry();
-			var point = new THREE.Mesh(pg,THREE.MeshFaceMaterial());
-			for (var i = 0; i < data.length;i++) {
-				var lng = data[i][0];
-				var lat = data[i][1];
-				var val = data[i][2]/max;
-				var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
-				var color = GLOBE.HELPER.factorToColor(val);
-				var scale = -((val*PILLAR_FULLSIZE));
-				point.scale.z = scale;
-				point.position = pos;
-				for (var ii = 0; ii < point.geometry.faces.length; ii++) {
-					point.geometry.faces[ii].color = color;
-				}
-				point.lookAt(scene.position);
-				THREE.GeometryUtils.merge(subgeo, point);
-			}
-
-			var points = new THREE.Mesh(subgeo, new THREE.MeshBasicMaterial({
-			      color: 0xffffff,
-			      vertexColors: THREE.FaceColors
-			}));
-
-			blendPillar(points,0.0,1.0);
-			pillars.push(points);
-			scene.add(points);
-			return points;
-		}
-
-		function changePillarFactor(pillar,factor) {
-			pillar.material.color = GLOBE.HELPER.factorToColor(factor); // TODO: include this in animation.
-			var tween = new TWEEN.Tween( {x: pillar.scale.z } )
-				.to ( {x: -(PILLAR_FULLSIZE*factor)}, 1000 )
-				.easing( TWEEN.Easing.Linear.EaseNone )
-				.onUpdate( function () {
-					pillar.scale.z = this.x;
-					pillar.needsUpdate = true;
-
-				} )
-				.start();
-			return pillar;
-		}
-
-		function disableDaylight() {
-			var disable = new THREE.Vector3(-1.0,-1.0,-1.0);
-			shaders['earth'].uniforms.lightcolor.value = disable;
-			shaders['atmosphere'].uniforms.lightcolor.value = disable;
-			shaders['atmosphere'].uniforms.needsUpdate = true;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function enableDaylight() {
-			shaders['earth'].uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
-			shaders['atmosphere'].uniforms.lightcolor.value = arrayColorToVector3(obj.lightColor);
-			shaders['atmosphere'].uniforms.needsUpdate = true;
-			shaders['earth'].uniforms.needsUpdate = true;
-		}
-
-		function isDaylightEnabled() {
-			var disable = new THREE.Vector3(-1.0,-1.0,-1.0);
-			return (shaders['earth'].uniforms.lightcolor.value != disable);
-		}
-
-		function setLightColor(col) {
-			obj.lightColor = colorToArrayColor(col);
-			if (isDaylightEnabled()) {
-				enableDaylight();
-			}
-		}
-
-		function updateTime() {
-			setTime(new Date());
-		}
-
-		function setTime(d) {
-			if (d !== undefined && d != null) {
-				time = d;
-				var h = d.getUTCHours() - 12.0;
-				var doy = (GLOBE.HELPER.dayOfYear(d)-1) - 180.0;
-
-				if (h < 0) {
-					h = 24.0 + h;
-				}
-
-				if (doy < 0){
-					doy = 356.0 + doy;
-				}
-
-				//shaders['earth'].uniforms.hourofday.value = h;
-				//shaders['earth'].uniforms.dayofyear.value = doy + 1.0;
-				shaders['earth'].uniforms.needsUpdate = true;
-				//TODO: Set light vector based on time
-			} else {
-				//shaders['earth'].uniforms.hourofday.value = 0.0;
-				//shaders['earth'].uniforms.dayofyear.value = 0.0;
-				shaders['earth'].uniforms.needsUpdate = true;
-				//TODO: Set light vector based on time
-			}
-		};
-
-		/* Blend out/Remove all registered pillars. 
-		 * Objects will also be removed from scene after animation is complete.
-		 * */
-		function clearPillars(callback) {
-			var pil = pillars;
-			pillars = [];
-			for (var i = 0; i < pil.length; i++) {
-				blendPillar(pil[i],1.0,0.0);
-			}
-			setTimeout(function() {
-				for (var p = 0; p < pil.length; p++) {
-					scene.remove(pil[p]);
-				}
-				if ((pil.length == 0) && (callback !== undefined)) {
-					callback();
-				}
-			},1000);
-		}
-
-		function onMouseInContainer(e) {
-			console.log("Inside container");
-			overRenderer = true;
-			//container.addEventListener('mousedown', onMouseDown, true);
-			$(containerId).bind('mousedown',undefined, onMouseDown);
-		}
-
-		function onMouseOutContainer(e) {
-			console.log("Outside container");
-			updateHoverHandler(NO_COUNTRY);	
-			overRenderer = false;
-			$(containerId).unbind('mousedown', onMouseDown);
-		}
-
-		function eventCountryHover(e,iso) {
-			obj.setHoverCountry(iso);
-		}
-
-		function eventCountryUnhover(e) {
-			obj.setHoverCountry('0');
-		}
-
-		/** Internally used gunction to deal with color set events for a country.
-		 * It assigns a user specified color to the given country. Event parameter is actually ignored. */
-		function eventSetCountryColor(e,opco,col) {
-			console.log("Setting color for country: " + opco);
-			obj.setCountryColor(opco,col);
-		}
-
-		/* Internally used function to deal with color unset event for a country.
-		 * It removes the currently assigned color of the given country. Event parameter is actually ignored. */
-		function eventUnsetCountryColor(e,opco) {
-			obj.unsetCountryColor(opco);
-		}
-
-		function eventNavigationZoomIn(e) {
-			zoom(ZOOM_CLICK_STEP);
-		}
-
-		function eventNavigationZoomOut(e) {
-			zoom(-ZOOM_CLICK_STEP);
-		}
-
-		function eventCountryFocus(e,opco) {
-			obj.moveToCountry(opco);
-		}
-
-		/** Add all relevant Event listeners */
-		function addEventListeners() {
-			console.log("Adding event Listener for 3D globe.");
-
-			/* Set event handler for environment */
-			$(document).bind('country:focus',eventCountryFocus);
-			$(document).bind('country:hover',eventCountryHover);
-			$(document).bind('country:unhover',eventCountryUnhover );
-
-			/*Steup event Listeners. */
-			window.addEventListener('resize', onWindowResize, false);
-			$(containerId).bind('mousedown', undefined, onMouseDown);
-			$(containerId).bind('mousewheel',undefined,  onMouseWheel);
-			$(containerId).bind('mousemove',undefined,  onMouseBrowse);
-			//document.addEventListener('keydown', onDocumentKeyDown, false);                                                                                           
-			$(containerId).bind('mouseover',undefined,  onMouseInContainer);
-			$(containerId).bind('mouseout',undefined,  onMouseOutContainer);
-
-			$(document).bind('country:color:set', eventSetCountryColor);
-			$(document).bind('country:color:unset', eventUnsetCountryColor);
-
-			$(document).bind('navigation:zoom:in', eventNavigationZoomIn);
-			$(document).bind('navigation:zoom:out', eventNavigationZoomOut);
-		}
-
-		/** Remove all relevant Event listeners */
-		function removeEventListeners() {
-			window.removeEventListener('resize', onWindowResize, true);
-			$(containerId).unbind('mousedown', onMouseDown);
-			$(containerId).unbind('mousewheel', onMouseWheel);
-			$(containerId).unbind('mousemove', onMouseBrowse);
-			$(containerId).unbind('mouseover', onMouseInContainer);
-			$(containerId).unbind('mouseout', onMouseOutContainer);
-
-			$(document).unbind('country:focus',eventCountryFocus);
-			$(document).unbind('country:hover',eventCountryHover);
-			$(document).unbind('country:unhover',eventCountryUnhover );
-
-			$(document).unbind('country:color:set', eventSetCountryColor);
-			$(document).unbind('country:color:unset', eventUnsetCountryColor);
-
-			$(document).unbind('navigation:zoom:in', eventNavigationZoomIn);
-			$(document).unbind('navigation:zoom:out', eventNavigationZoomOut);
-		}
-
-		function init() {
-			scene = new THREE.Scene();
-			projector = new THREE.Projector();
-			//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
-			//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
-			camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
-			renderer = new THREE.WebGLRenderer();
-			renderer.setSize( width, height );                                                                                                
-			//renderer.setClearColorHex(0x000000, 0.0);
-			//renderer.setClearColor(0x000000, 0.0);
-			renderer.setClearColor(arrayColorToColor(obj.bgColor), 1.0);
-			renderer.autoClear = false;
-			renderer.setBlending(THREE.AdditiveBlending);
-
-			scene.add(camera);
-			camera.position.z = distance;
-
-			//registerEventListener()
-
-			$(containerId).append($(renderer.domElement));
-			console.log("GLOBE initialized.");
-		}
-
-		function render() {
-			zoom(0);
-			rotation.x += (target.x - rotation.x) * 0.1 * obj.rotSpeedFac;
-			rotation.y += (target.y - rotation.y) * 0.1 * obj.rotSpeedFac;
-			distance += (obj.distanceTarget - distance) * 0.3;
-			camera.position.x = distance * Math.sin(rotation.x) * Math.cos(rotation.y);
-			camera.position.y = distance * Math.sin(rotation.y);
-			camera.position.z = distance * Math.cos(rotation.x) * Math.cos(rotation.y);
-
-			camera.lookAt(scene.position);
-			camera.updateProjectionMatrix();
-
-			renderer.clear();
-			renderer.render(scene, camera);
-			renderer.render(atmosphereScene, camera);
-			renderer.render(particleScene, camera);
-		}
-
-		function animate() {
-			if (enabled) {
-				requestAnimationFrame(animate);                                                                                                                           
-				TWEEN.update();
-				tic+=1;
-				shaders['particle'].uniforms.now.value = tic;
-				shaders['particle'].uniforms.randomu.value = Math.random();
-
-				// Wait 50 frames before sending initialized event.
-				if (tic == 50) {
-					$(document).trigger('globe:initialized',[]);
-				}
-
-				render();
-			}
-		}
-
-		/* Zoom/Scale globe and atmosphere within given boundaries. 
-		 * This is called for every frame render. */
-		function zoom(delta) {
-			obj.distanceTarget -= delta;
-			var min = RADIUS * 1.1;
-			var max = RADIUS * 5;
-			obj.distanceTarget = obj.distanceTarget > max ? max : obj.distanceTarget;
-			obj.distanceTarget = obj.distanceTarget < min ? min : obj.distanceTarget;
-
-			// scale atmosphere according to zoom level. This makes atmosphere more realistic in deep zoom mode.
-			var scaleFactor = 1.0 - ((distance - min) / (max-min) );
-			atmosphere.scale.x = atmosphere.scale.y = atmosphere.scale.z = (ATMOSPHERE_SIZE_FACTOR + (scaleFactor * 0.05)) ;
-		}
-
-		function onMouseDown(event) {
-			/* Check whether mouse is over sphere. Only in this case the spehere should be rotatable */
-			var intersects = getIntersects(event);
-			if (intersects.length >= 1) {
-				//event.preventDefault();
-				$(containerId).bind('mousemove',undefined, onMouseMove);
-				$(containerId).bind('mouseup',undefined, onMouseUp);
-				$(containerId).bind('mouseout',undefined, onMouseOut);
-				mouseOnDown.x = - event.clientX;
-				mouseOnDown.y = event.clientY;
-				mouseOnDown.country = hovered_cc;
-				targetOnDown.x = target.x;
-				targetOnDown.y = target.y;
-				container.style.cursor = 'move';
-			}
-		}
-
-		function convert_from_polar(polar) {
-			var tmp = Math.cos(polar.y);
-			var depth = polar.z;
-			var ret = new THREE.Vector3(depth * tmp * Math.sin( polar.x), depth * Math.sin(polar.y), depth * tmp * Math.cos(polar.x));
-			return ret;
-		}
-
-		function convert_to_polar(coord) {
-
-			var x = Math.atan( coord.x/ coord.z);
-			var y = Math.atan( (coord.y * Math.cos(x)) / coord.z);
-
-			x = x * 180 / Math.PI;
-			y = y * 180 / Math.PI;
-
-			// var y = Math.asin(coord.y / RADIUS);
-			//var x = Math.asin( ( coord.x/(RADIUS * Math.acos(y)) ) );
-			//
-			if (coord.z < 0) {
-				x = x+180;
-			} else {
-				y = -y;
-			}
-
-			x = x - 90;
-
-			if (x > 180)
-				x = x - 360;
-
-			var ret = new THREE.Vector2(x,y);
-			return ret;
-		}
-
-		function setHoverCountry(iso) {
-			try {
-				if (iso != hovered_cc) {
-					hovered_cc = iso;
-					var geo = GLOBE.GEO.lookup_geo_points(iso);
-					geo[0]=(geo[0] + 180) /360;
-					geo[1]=(geo[1] + 90) / 180;
-
-					shaders['earth'].uniforms.mousex.value = geo[0];
-					shaders['earth'].uniforms.mousey.value = geo[1];
-				}
-			} catch (err) {
-
-			}
-		}
-
-		function updatePolarCoordinates(vec) {
-			var cc = GLOBE.GEO.lookup_country(vec.x,vec.y);
-
-			var v = new THREE.Vector2( (vec.x + 180) / 360, (vec.y+90)/180);
-			$(document).trigger('polar:hover', [ Math.round(vec.x * 10)/10, Math.round(vec.y * 10) /10 ]);
-
-			updateHoverHandler(cc);
-
-			shaders['earth'].uniforms.mousex.value = v.x;
-			shaders['earth'].uniforms.mousey.value = v.y;
-		}
-
-		function updateHoverHandler(cc) {
-			if (cc != hovered_cc) {
-				hovered_cc = cc;
-
-				if (cc == NO_COUNTRY) {
-					shaders['earth'].uniforms.mousex.value = 0;
-					shaders['earth'].uniforms.mousey.value = 0;
-					cc = null;
-				}
-
-				if (isNaN(cc) || cc == null) {
-					$(document).trigger('country:hover',cc);
-				} else {
-					console.warn("Please map country id: " + cc);
-				}
-			}
-		}
-
-		function getHoveredCountry() {
-			return hovered_cc;
-		}
-
-		function getIntersects(event) {
-			event.preventDefault();
-			var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
-			projector.unprojectVector( vector, camera );
-			var ray = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
-			var intersects = ray.intersectObjects( [ sphere ] );
-			return intersects;
-		}
-
-		function onMouseBrowse(event) {
-			if (overRenderer) {
-				if (lightMode.current == lightMode.MOUSE) {
-					/* Set light vector based on mouse position. Mouse emits light. */
-					var lightv = new THREE.Vector3( (event.clientX * 2.0/window.innerWidth)-1.0, (event.clientY *-2.0 /window.innerHeight) +1.0,1.0);
-					shaders['earth'].uniforms.lightvector.value = lightv;
-					shaders['atmosphere'].uniforms.lightvector.value = lightv;
-				}
-
-				/* Set polar coordinates of mouse pointer. */
-				var intersects = getIntersects(event);
-				if (intersects.length == 1) {
-					overGlobe = true;
-					var i = 0;
-					var vec = new THREE.Vector3(intersects[i].point.x,intersects[i].point.y,intersects[i].point.z);
-					mouse_polar = convert_to_polar(vec);
-					updatePolarCoordinates(mouse_polar);
-					if (mouseMoveHandler !== undefined) {
-						mouseMoveHandler(event);
-					}
-				} else {
-					if (overGlobe) {
-						overGlobe = false;
-						updateHoverHandler(NO_COUNTRY);
-						if (mouseMoveHandler !== undefined) {
-							mouseMoveHandler(undefined);
-						}
-					}
-				}
-			}
-		}
-
-		function moveToCountry(iso) {
-			var po = GLOBE.GEO.lookup_geo_points(iso);
-			return moveToPolar(po[0],po[1])
-		}
-
-		function moveToPolar(lon,lat) {
-			console.log("Moving to " + lon + "," + lat);
-			var camt = convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lon), degree_to_radius_latitude(lat),RADIUS*2));
-
-			target.x = degree_to_radius_longitude(lon);
-			target.y = degree_to_radius_latitude(lat);
-
-			camera.position = camt;
-			camera.lookAt(scene.position);
-			return [ target.x , target.y ];
-		}
-
-		function getCamTargetPos() {
-			return [ target.x, target.y ];
-		}
-
-		function setCamTargetPos(x,y) {
-			target.x = x;
-			target.y = y;
-		}
-
-		function onMouseMove(event) {
-			mouse.x = - event.clientX;
-			mouse.y = event.clientY;
-			var zoomDamp = distance/1000;
-			target.x = targetOnDown.x + (mouse.x - mouseOnDown.x) * 0.005 * zoomDamp;
-			target.y = targetOnDown.y + (mouse.y - mouseOnDown.y) * 0.005 * zoomDamp;
-			target.y = target.y > PI_HALF ? PI_HALF : target.y;
-			target.y = target.y < - PI_HALF ? - PI_HALF : target.y;
-		}
-
-		function onMouseUp(event) {
-			$(containerId).unbind('mousemove', onMouseMove);
-			$(containerId).unbind('mouseup', onMouseUp);
-			$(containerId).unbind('mouseout', onMouseOut);
-			container.style.cursor = 'auto';
-			//createSourceParticle(mouse_polar.x,mouse_polar.y);
-			//console.log(mouse_polar.x + " " + mouse_polar.y);
-			if (hovered_cc == mouseOnDown.country) {
-				$(document).trigger('country:click',hovered_cc);
-			}
-		}
-
-		function onMouseOut(event) {
-			$(containerId).unbind('mousemove', onMouseMove);
-			$(containerId).unbind('mouseup', onMouseUp);
-			$(containerId).unbind('mouseout', onMouseOut);
-		}
-
-		function onMouseWheel(event) {
-			//event.preventDefault();
-			//console.log("Mouse Wheel " + event);
-			if (overRenderer) {
-				zoom(event.originalEvent.wheelDeltaY * 0.3);
-			} 
-			return false;
-		}
-
-		//TODO: Change to size of container.
-		function onWindowResize( event ) {
-			camera.aspect = window.innerWidth / window.innerHeight;
-			camera.updateProjectionMatrix();
-			renderer.setSize( window.innerWidth, window.innerHeight );
-		}
-
-		function stop() {
-			enabled = false;
-			removeEventListeners();
-			renderer.clear();
-		}
-
-		function start() {
-			enabled = true;
-			addEventListeners();
-			animate();
-		}
-
-		function getContainerId() {
-			return obj.containerId;
-		}
-
-		function setMouseMoveHandler(f) {
-			mouseMoveHandler = f;
-		}
-
-		function setParticleSize(size) {
-			obj.particleSize = size;
-		}
+		
 
 		shaders = {
 			'earth' : {
@@ -1622,17 +1644,22 @@ GLOBE.TYPES.Globe = function (cid) {
 
 							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);', /* background color */
 							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);', /* background color */
+
+							  'vec4 geo = texture2D(geodata,vUv);',
+							  'diffuse = vec4(mix(diffuse.xyz,geo.xyz,geo.a),diffuse.a);', /* geocolor */
 							  //'if (ccol.r > 0.2 || ccol.g > 0.2 || ccol.b > 0.2) {',
 							  'if (ccol.w > 0.0) {',
 							  	//'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w * cintensity * 2.0),diffuse.a);', /* Country Color */
 							  	'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w),diffuse.a);', /* Country Color */
 							  '}',
+
 							  'diffuse = vec4(mix(diffuse.xyz,bcolor,(texture2D(texture,vUv2).y * bintensity)),1.0);', /* Border Color */
+
 							  'diffuse = vec4(mix(diffuse.xyz,city_col,city_fac),diffuse.a);', /* City Color */
+
 							  'vec3 atmosphere = mix(diffuse.xyz,acolor,pow( intensity, 3.0 ));', /* atmosphere */
-							  'float geo = texture2D(geodata,vUv).x;',
 							  'diffuse = vec4(mix(diffuse.xyz,atmosphere,day_factor),diffuse.a);', /* atmosphere */
-							  'gl_FragColor = (diffuse.a * brightness) * diffuse * 1.0;',
+							  'gl_FragColor = (diffuse.a * brightness) * diffuse;',
 					'}'
 				].join('\n')
 			},
@@ -1881,7 +1908,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.setCountryHoverColor = setCountryHoverColor;
 		obj.stop = stop;
 		obj.start = start;
-		obj.isEnabled = function () { return enabled; }
+		obj.isEnabled = function () { return enabled; };
 		obj.getContainerId = getContainerId;
 		obj.connectCountry = connectCountry;
 		obj.connectPolar = connectPolar;
@@ -1896,6 +1923,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.setParticleSize = setParticleSize;
 		obj.getHoveredCountry = getHoveredCountry;
 		obj.setRotationSpeed = setRotationSpeed;
+		obj.setGeoDataColor = setGeoDataColor;
+		obj.setGeoDataTexture = setGeoDataTexture;
+		obj.clearGeoDataColor = clearGeoDataColor;
 		//obj.shaders = shaders; /* export for debuging purposes */
 
 		render();
@@ -1915,4 +1945,4 @@ GLOBE.TYPES.Globe = function (cid) {
 		console.log(e);
 		throw e;
 	}
-}
+};

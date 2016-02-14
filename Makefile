@@ -55,6 +55,10 @@ $(GENDIR)/globe.js: $(GENDIR)/lookup.js $(GENDIR)/flags.css $(GENDIR)/atlas.png 
 test: EXAMPLE
 	cd $(DISTDIR)/examples/basic && go run server.go
 
+
+check: 
+	jshint *.js
+
 edit: 
 	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
 
