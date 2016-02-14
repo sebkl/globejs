@@ -42,7 +42,7 @@ var GLOBE = GLOBE || {
 	'HELPER': {
 		'dayOfYear': function(d) {
 			var first = new Date(d.getFullYear(), 0, 1);
-			var theDay = Math.round(((d - first) / 1000 / 60 / 60 / 24) + .5, 0);
+			var theDay = Math.round(((d - first) / 1000 / 60 / 60 / 24) + 0.5, 0);
 			return d;
 		},
 		'assertSupportedBrowsers': function() {
@@ -58,7 +58,7 @@ var GLOBE = GLOBE || {
 				}
 			}
 
-			if (found == 0) {
+			if (found === 0) {
 				throw "Browser not supported.";
 			}
 		},
@@ -104,6 +104,10 @@ var GLOBE = GLOBE || {
 	},
 	'WIDGETS': {
 		'renderShareBar': function(sbid) {
+			var func = function() {
+				window.open($(this).attr('href'),'_blank');
+			};
+
 			for (var i in GLOBE.CONFIGURATION.shareButtons) {
 				var o =GLOBE.CONFIGURATION.shareButtons[i];
 				var item = $('<div>');
@@ -115,9 +119,7 @@ var GLOBE = GLOBE || {
 					item.css('background-repeat','no-repeat');
 					item.css('background-position','left center');
 					item.attr('href',o.url);
-					item.click(function() {
-						window.open($(this).attr('href'),'_blank');
-					});
+					item.click(func);
 				}
 				item.css('width','24px');
 				item.css('height','24px');
@@ -132,7 +134,7 @@ var GLOBE = GLOBE || {
 				$(document).bind("country:hover", function(e,iso) {
 					ret.removeClass();
 					ret.addClass("flag_" + iso);
-				})
+				});
 				ret.addClass("flag_undefined");
 			} else if (Number(id) == id) {
 				ret.addClass("CID_" + id);
