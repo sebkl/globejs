@@ -1,0 +1,13 @@
+[
+	[  
+		{ "atlas/texture.png": 0 },
+		{ "atlas/texture.png": 1 },
+		{ "atlas/texture.png": 2 },
+		{ "atlas/texture.png": 3 }
+	],[
+		{},
+		{ "atlas/borders.png": 0 },
+		{ "atlas/city.png": 0 },
+		{ "atlas/heightmap.png": 0 }
+	]
+]

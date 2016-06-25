@@ -1403,7 +1403,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		obj.prefix=$(cid).attr('prefix');
 		if (!obj.prefix) { obj.prefix = ""; }
 		var atlas_url = obj.prefix + 'gen/atlas.png';
-		var cmap_url = obj.prefix + 'img/cmap.png';
+		var cmap_url = obj.prefix + 'gen/cmap.png';
 
 		/* Camera moving : */
 		var vector = THREE.Vector3();
@@ -1559,7 +1559,8 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform sampler2D texture;',
 					'uniform float heightfactor;',
 					'void main() {',
-					  'float hf = 1.0 - texture2D(texture,vec2(uv.x,(uv.y/2.0))).w;',
+					  //'float hf = 1.0 - texture2D(texture,vec2(uv.x,(uv.y/2.0))).w;',
+					  'float hf = texture2D(texture,vec2(uv.x,(uv.y/2.0))).w;',
 					  'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 - (hf*0.06*heightfactor) );',
 					  'vNormal = normalize( normalMatrix * normal );',
 					  'vUv = uv;',
