@@ -28,37 +28,9 @@ type SourceConfig struct {
 type ColorMapping map[Color]SourceConfig
 type TextureConfig []ColorMapping
 
-var textureConfig TextureConfig
-var mapConfig TextureConfig
-
-func init() {
-	textureConfig = TextureConfig{
-		{
-			R: {"atlas/texture.png", R},
-			G: {"atlas/texture.png", G},
-			B: {"atlas/texture.png", B},
-			A: {"atlas/texture.png", A},
-		}, {
-			//R: {"atlas/countrymap.png", R},
-			G: {"atlas/borders.png", R},
-			B: {"atlas/city.png", R},
-			A: {"atlas/heightmap.png", R},
-		},
-	}
-
-	mapConfig = TextureConfig{
-		{
-			R: {"atlas/countrymap.png", R},
-			G: {"atlas/mask.png", R},
-		},
-	}
-}
-
 const (
-	WIDTH             = 4096
-	HEIGHT            = 2048
-	DEFAULT_OUTPUT_FN = "atlas.png"
-	DEFAULT_MAP_FN    = "map.png"
+	WIDTH  = 4096
+	HEIGHT = 2048
 )
 
 func buildImage(cfg *TextureConfig) image.Image {
@@ -141,8 +113,8 @@ func buildImage(cfg *TextureConfig) image.Image {
 }
 
 func main() {
-	in := "atlas/atlas.json"
-	fn := "atlas.png"
+	in := "atlas.json" //Default configuration
+	fn := "atlas.png"  //Default output file
 
 	if len(os.Args) >= 2 {
 		in = os.Args[1]
