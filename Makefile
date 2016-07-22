@@ -27,7 +27,7 @@ $(DISTDIR)/third-party: $(DISTDIR)
 	cp -r third-party $@
 
 $(GENDIR)/lookup.js: $(GENDIR)
-	bin/create_lookupmap.pl $@ 
+	$(GO) run  bin/lookupmap.go $@
 
 $(DISTDIR):
 	mkdir -p $@
