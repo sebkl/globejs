@@ -27,7 +27,7 @@ $(DISTDIR)/third-party: $(DISTDIR)
 	cp -r third-party $@
 
 $(GENDIR)/lookup.js: $(GENDIR)
-	$(GO) run  bin/lookupmap.go $@
+	$(GO) run  bin/lookupmap.go -o $@
 
 $(DISTDIR):
 	mkdir -p $@
@@ -48,14 +48,14 @@ atlas: $(GENDIR)/atlas.png $(GENDIR)/cmap.png
 flagatlas: $(GENDIR)/flagatlas.png
 
 $(GENDIR)/atlas.png:
-	$(GO) run bin/textureatlas.go atlas.json $@ 
+	$(GO) run bin/textureatlas.go -c atlas/atlas.json -o $@ 
 	
 $(GENDIR)/cmap.png:
-	$(GO) run bin/textureatlas.go cmap.json $@ 
+	$(GO) run bin/textureatlas.go -c atlas/cmap.json -o $@ 
 
 $(GENDIR)/flagatlas.png: $(GENDIR)
 	rm $(GENDIR)/flagatlas.png $(GENDIR)/flags.css || true
-	$(GO) run bin/flagatlas.go atlas/flags countrydata/country_map.json $@ $(GENDIR)/flags.css flagatlas.png
+	$(GO) run bin/flagatlas.go -fd atlas/flags -cm countrydata/country_map.json -o $@ -css $(GENDIR)/flags.css -url flagatlas.png
 
 $(DISTDIR)/img/cmap.png: $(DISTDIR)/img img/cmap.png
 	cp img/map.png $@
@@ -67,7 +67,7 @@ $(GENDIR)/globe.js: $(GENDIR)/lookup.js $(GENDIR)/flags.css $(GENDIR)/atlas.png 
 
 .PHONY: check
 test: EXAMPLE
-	cd $(DISTDIR)/examples/basic && go run server.go
+	cd $(DISTDIR)/examples/basic && $(GO) run server.go
 
 .PHONY: check
 check: 
@@ -75,7 +75,7 @@ check:
 
 .PHONY: edit
 edit: 
-	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html
+	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html bin/*.go
 
 .PHONY: clean
 clean:

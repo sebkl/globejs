@@ -1,12 +1,11 @@
-
 package main
 
 import (
-	"os"
 	"fmt"
+	. "github.com/sebkl/gotojs"
 	"io/ioutil"
 	"net/http"
-	. "github.com/sebkl/gotojs"
+	"os"
 )
 
 func main() {
@@ -14,5 +13,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(Minify(http.DefaultClient,bytes)))
+	fmt.Println(string(Minify(http.DefaultClient, bytes)))
 }

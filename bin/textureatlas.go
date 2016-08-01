@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"github.com/nfnt/resize"
+	"github.com/sebkl/flagconf"
 	"image"
 	"image/color"
 	"image/png"
@@ -11,7 +13,7 @@ import (
 	"reflect"
 )
 
-//TODO: use flagconf
+//TODO: Generalize this / Create a dedicated to for image atlases.
 
 const (
 	R = iota
@@ -29,10 +31,23 @@ type ColorMapping map[Color]SourceConfig
 type TextureConfig []ColorMapping
 
 const (
-	WIDTH  = 4096
-	HEIGHT = 2048
+	WIDTH             = 4096
+	HEIGHT            = 2048
+	DEFAULT_OUTPUT_FN = "atlas.png"
+	DEFAULT_CONFIG_FN = "atlas.json"
 )
 
+var config struct {
+	ConfigurationFN string
+	OutputFN        string
+}
+
+func init() {
+	flag.StringVar(&config.ConfigurationFN, "c", DEFAULT_CONFIG_FN, "Configuration file.")
+	flag.StringVar(&config.OutputFN, "o", DEFAULT_OUTPUT_FN, "Output file. (atlas image,PNG).")
+}
+
+//buildImage assembles an image based on the given configuration.
 func buildImage(cfg *TextureConfig) image.Image {
 	files := map[string]image.Image{} //TODO: make file cache global.
 
@@ -113,29 +128,21 @@ func buildImage(cfg *TextureConfig) image.Image {
 }
 
 func main() {
-	in := "atlas.json" //Default configuration
-	fn := "atlas.png"  //Default output file
-
-	if len(os.Args) >= 2 {
-		in = os.Args[1]
-	}
-
-	if len(os.Args) >= 3 {
-		fn = os.Args[2]
-	}
+	flagconf.Parse("GOTOJS_TEXTUREATLAS")
 
 	type SourceReadConfig [][]map[string]uint8
 	icfg := SourceReadConfig{}
 
-	f, err := os.Open(in)
+	f, err := os.Open(config.ConfigurationFN)
 	if err != nil {
-		log.Fatalf("Configuration file '%s' error: %s", in, err)
+		log.Fatalf("Configuration file '%s' error: %s", config.ConfigurationFN, err)
 	}
+	defer f.Close()
 
 	decoder := json.NewDecoder(f)
 	err = decoder.Decode(&icfg)
 	if err != nil {
-		log.Fatalf("Configuration file '%s' decoding error: %s", in, err)
+		log.Fatalf("Configuration file '%s' decoding error: %s", config.ConfigurationFN, err)
 	}
 
 	//TODO: simplify this
@@ -153,9 +160,9 @@ func main() {
 		}
 	}
 
-	log.Printf("Processing output file: '%s'", fn)
+	log.Printf("Processing output file: '%s'", config.OutputFN)
 	img := buildImage(&cfg)
-	f, err = os.OpenFile(fn, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(config.OutputFN, os.O_CREATE|os.O_WRONLY, 0644)
 	err = png.Encode(f, img)
 	if err != nil {
 		log.Fatalf("Encoding PNG image failed: '%s'", err)

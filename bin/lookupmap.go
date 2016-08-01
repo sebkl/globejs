@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/sebkl/flagconf"
 	"image"
 	"image/color"
 	"image/png"
@@ -64,6 +66,20 @@ GLOBE.GEO.lookup_countryname = function(iso) {
 `
 )
 
+var config struct {
+	CountryMapImageFN string
+	OutputFN          string
+	CountryNamesFN    string
+	CountryMapFN      string
+}
+
+func init() {
+	flag.StringVar(&config.CountryMapImageFN, "imagemap", DEFAULT_COUNTRYMAP_IMAGE_FN, "Country image map in greyscale: Color->idx (PNG)")
+	flag.StringVar(&config.OutputFN, "o", DEFAULT_OUTPUT_FN, "Output file.")
+	flag.StringVar(&config.CountryNamesFN, "cn", DEFAULT_COUNTRYNAME_FN, "Country name mapping: ISO->name (JSON)")
+	flag.StringVar(&config.CountryMapFN, "cm", DEFAULT_COUNTRYMAP_FN, "Country mapping: idx->ISO (JSON)")
+}
+
 // polar2pixel extracts the pixel of image that maps to the given longitude
 // and latitude.
 func polar2pixel(img image.Image, long, lat float64) color.Color {
@@ -72,11 +88,13 @@ func polar2pixel(img image.Image, long, lat float64) color.Color {
 	return img.At(x, y)
 }
 
+// loadPNGImage loads a PNG image from the given filename
 func loadPNGImage(fn string) (img image.Image, err error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return img, fmt.Errorf("Failed to open image '%s': %s", fn, err)
 	}
+	defer f.Close()
 
 	img, err = png.Decode(f)
 	if err != nil {
@@ -91,6 +109,7 @@ func loadJSONMap(fn string) (ret map[string]string, err error) {
 	if err != nil {
 		return ret, err
 	}
+	defer f.Close()
 
 	ret = make(map[string]string)
 
@@ -104,24 +123,17 @@ func loadJSONMap(fn string) (ret map[string]string, err error) {
 }
 
 func main() {
-	cmap_image_fn := DEFAULT_COUNTRYMAP_IMAGE_FN
-	outfile := DEFAULT_OUTPUT_FN
-	country_names_fn := DEFAULT_COUNTRYNAME_FN
-	country_map_fn := DEFAULT_COUNTRYMAP_FN
+	flagconf.Parse("GLOBEJS_LOOKUPMAP")
+	log.Printf("Outputfile: %s", config.OutputFN)
 
-	if len(os.Args) > 1 {
-		outfile = os.Args[1]
-	}
-	log.Printf("Outputfile: %s", outfile)
-
-	cmap_image, err := loadPNGImage(cmap_image_fn)
+	cmap_image, err := loadPNGImage(config.CountryMapImageFN)
 	if err != nil {
 		log.Fatal("Failed to load countrymap: '%s'", err)
 	}
 
-	cc, err := loadJSONMap(country_map_fn)
+	cc, err := loadJSONMap(config.CountryMapFN)
 	if err != nil {
-		log.Fatalf("Failed to load country map '%s': %s", country_map_fn, err)
+		log.Fatalf("Failed to load country map '%s': %s", config.CountryMapFN, err)
 	}
 
 	sm := make([][]string, int(3600/STEP))
@@ -153,10 +165,11 @@ func main() {
 		}
 	}
 
-	f, err := os.OpenFile(outfile, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(config.OutputFN, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("Could not open output file '%s': %s", outfile, err)
+		log.Fatalf("Could not open output file '%s': %s", config.OutputFN, err)
 	}
+	defer f.Close()
 	enc := json.NewEncoder(f)
 
 	// ########## GEO -> ISO #############
@@ -176,9 +189,9 @@ func main() {
 	fmt.Fprintf(f, ";\n")
 
 	// ########## ISO -> COUNTRY NAME #############
-	ccs, err := loadJSONMap(country_names_fn)
+	ccs, err := loadJSONMap(config.CountryNamesFN)
 	if err != nil {
-		log.Fatalf("Failed to load country name '%s': %s", country_names_fn, err)
+		log.Fatalf("Failed to load country name '%s': %s", config.CountryNamesFN, err)
 	}
 	fmt.Fprintf(f, "GLOBE.GEO.countrnames = ")
 	err = enc.Encode(ccs)
