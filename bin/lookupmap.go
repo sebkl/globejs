@@ -51,7 +51,7 @@ GLOBE.GEO.lookup_geo_points = function(iso) {
 		var ret = a[Math.round(a.length/2)-1];
 		return ([ret[0] - 180,ret[1] -90]);
 	} catch (err) {
-		console.log('Cannot lookup geopoints for: '+iso);
+		console.log('Cannot lookup geopoints for "'+iso+'": ' + err);
 		return undefined;
 	}
 }
@@ -137,7 +137,7 @@ func main() {
 	}
 
 	sm := make([][]string, int(3600/STEP))
-	countryindex := make(map[string][2]int)
+	countryindex := make(map[string][][2]int)
 	for lo := 0; lo < 3600; lo += STEP {
 		//longidx := int(lo / (10 * STEP))
 		longidx := int(lo / STEP)
@@ -155,13 +155,11 @@ func main() {
 
 			sref := strconv.Itoa(ref)
 			if val, ok := cc[sref]; ok {
-				//sm[longidx][latidx] = fmt.Sprintf("'%s'", val)
-				sm[longidx][latidx] = val
-			} else {
-				//sm[longidx][latidx] = sref
+				sref = val
 			}
 
-			countryindex[sref] = [2]int{int(lo / 10), int(la / 10)}
+			sm[longidx][latidx] = sref
+			countryindex[sref] = append(countryindex[sref], [2]int{int(lo / 10), int(la / 10)})
 		}
 	}
 
@@ -193,7 +191,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load country name '%s': %s", config.CountryNamesFN, err)
 	}
-	fmt.Fprintf(f, "GLOBE.GEO.countrnames = ")
+	fmt.Fprintf(f, "GLOBE.GEO.countrynames = ")
 	err = enc.Encode(ccs)
 	if err != nil {
 		log.Fatalf("Failed to encode iso 2 country-name mapping: %s", err)
