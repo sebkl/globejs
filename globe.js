@@ -562,8 +562,8 @@ GLOBE.TYPES.Globe = function (cid) {
 	function buildSphere() {
 		var shader = shaders.earth;
 
-		var texture = THREE.ImageUtils.loadTexture(atlas_url);
-		var countrymap = THREE.ImageUtils.loadTexture(cmap_url);
+		var texture = texloader.load(atlas_url);
+		var countrymap = texloader.load(cmap_url);
 
 		//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
 		countrymap.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
@@ -1051,7 +1051,6 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function init() {
 		scene = new THREE.Scene();
-		projector = new THREE.Projector();
 		//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
 		//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
 		camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
@@ -1061,7 +1060,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		//renderer.setClearColor(0x000000, 0.0);
 		renderer.setClearColor(arrayColorToColor(obj.bgColor), 1.0);
 		renderer.autoClear = false;
-		renderer.setBlending(THREE.AdditiveBlending);
+		//renderer.setBlending(THREE.AdditiveBlending);
 
 		scene.add(camera);
 		camera.position.z = distance;
@@ -1224,8 +1223,8 @@ GLOBE.TYPES.Globe = function (cid) {
 	function getIntersects(event) {
 		event.preventDefault();
 		var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
-		projector.unprojectVector( vector, camera );
-		var ray = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
+		var ray = new THREE.Raycaster();
+		ray.setFromCamera(vector,camera);
 		var intersects = ray.intersectObjects( [ sphere ] );
 		return intersects;
 	}
@@ -1404,6 +1403,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		if (!obj.prefix) { obj.prefix = ""; }
 		var atlas_url = obj.prefix + 'gen/atlas.png';
 		var cmap_url = obj.prefix + 'gen/cmap.png';
+		var texloader = new THREE.TextureLoader();
 
 		/* Camera moving : */
 		var vector = THREE.Vector3();
@@ -1457,7 +1457,6 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		/* Geometries 3D Base objects*/
 		var shaders = {};
-		var projector;
 		var scene;
 		var atmosphereScene;
 		var particleScene;
@@ -1725,7 +1724,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					texture: { 
 						type: 't', 
-						value: THREE.ImageUtils.loadTexture( obj.prefix + 'img/particle.png' ) 
+						value: texloader.load( obj.prefix + 'img/particle.png' ) 
 					},
 					randomu: {
 						type: 'f',
