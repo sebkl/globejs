@@ -2,7 +2,7 @@ package main
 
 import (
 	. "github.com/sebkl/gotojs"
-	. "github.com/sebkl/gotojs/stream"
+	//. "github.com/sebkl/gotojs/stream"
 	. "github.com/sebkl/gotojs/stream/twitter"
 	"log"
 )

@@ -426,12 +426,59 @@ GLOBE.TYPES.Globe = function (cid) {
 		var lifetimes = shader.attributes.lifetime.value;
 		var created = shader.attributes.created.value;
 		var sizes = shader.attributes.size.value;
-		var random = shader.attributes.size.value;
+		var random = shader.attributes.random.value;
 		var color = shader.attributes.color.value;
 		var hf = shader.attributes.heightfactor.value;
 		//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
 
-		particles = new THREE.Geometry();
+		particles = new THREE.BufferGeometry();
+
+		vertices = new Float32Array();
+		for (var i = 0; i < particle_count;i++) {
+			vertices[i*1] = 0.0;
+			vertices[i*2] = 1.0;
+			vertices[i*3] = 0.0;
+
+			longs[i] = degree_to_radius_longitude(0);
+			lats[i] = degree_to_radius_latitude(0);
+			created[i] = tic;
+			destx[i] = degree_to_radius_longitude(0);
+			desty[i] = degree_to_radius_latitude(0);
+			lifetimes[i] = 0;
+			sizes[i] = 0;
+			random[i] = 0.5;
+			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
+			hf[i] = 1.0;
+
+		}
+
+		particles.addAttribute('position', new THREE.BufferAttribute( vertices, 3 ) );
+		particles.addAttribute('longitude', new THREE.BufferAttribute(  longs, 1));
+		particles.addAttribute('latitude', new THREE.BufferAttribute(  lats, 1));
+		particles.addAttribute('longitude_d', new THREE.BufferAttribute(  destx, 1));
+		particles.addAttribute('latitude_d', new THREE.BufferAttribute(  desty, 1));
+		particles.addAttribute('lifetime', new THREE.BufferAttribute(  lifetimes, 1));
+		particles.addAttribute('created', new THREE.BufferAttribute(  created, 1));
+		particles.addAttribute('size', new THREE.BufferAttribute(  sizes, 1));
+		particles.addAttribute('radnom', new THREE.BufferAttribute(  random, 1));
+		particles.addAttribute('color', new THREE.BufferAttribute(  color, 1)); //TODO: check correctness
+		particles.addAttribute('heightfactor', new THREE.BufferAttribute(  hf, 1));
+		particles.dynamic = true;
+
+		var material = new THREE.ShaderMaterial ( {
+			uniforms: shader.uniforms,
+			//attributes: shader.attributes,
+			vertexShader: shader.vertexShader,
+			fragmentShader: shader.fragmentShader,
+			transparent: true,
+			blending: obj.particleBlending,
+			depthTest: true,
+			wireframe: true,
+			depthWrite: false //Magic setting to make particles not clipping ;)
+		});
+
+		/*
+
 		for (var i = 0; i < particle_count;i++) {
 
 			particles.vertices[i] =  new THREE.Vector3(0,0,0);
@@ -459,7 +506,9 @@ GLOBE.TYPES.Globe = function (cid) {
 			depthWrite: false //Magic setting to make particles not clipping ;)
 		});
 
-		particleSystem = new THREE.ParticleSystem(
+		*/
+
+		particleSystem = new THREE.Points(
 			particles,
 			material
 		);
@@ -1133,7 +1182,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			mouseOnDown.country = hovered_cc;
 			targetOnDown.x = target.x;
 			targetOnDown.y = target.y;
-			container.style.cursor = 'move';
+			$(containerId).css( 'cursor', 'move' );
 		}
 	}
 
@@ -1358,7 +1407,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var obj = {};
 		/* container variables */
 		var containerId = cid;
-		var container = $(cid).context.documentElement;
 		var polar_container;
 
 		/* screen geometry */
@@ -1734,43 +1782,43 @@ GLOBE.TYPES.Globe = function (cid) {
 				attributes: {
 					longitude: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					latitude: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					longitude_d: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					latitude_d: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					created: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					lifetime: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					color: {
 						type: 'v4',
-						value: []
+						value: new Uint8Array()
 					},
 					size: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					}, 
 					heightfactor: {
 						type: 'f',
-						value: []
+						value: new Float32Array()
 					},
 					random: { 	
 						type: "f", 
-						value: []
+						value: new Float32Array()
 					}
 
 				},
