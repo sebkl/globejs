@@ -15,7 +15,7 @@ func main() {
 	}
 	server.EnableFileServer("htdocs", "p")
 	server.Redirect("/", "/p/")
-	//server.ExposeMethods(tstream,"Next")
+	server.ExposeMethods(tstream, "Next")
 	server.ExposeInterface(tstream, "Tweets")
 	server.ExposeYourself()
 
