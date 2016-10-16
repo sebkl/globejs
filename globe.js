@@ -277,10 +277,9 @@ GLOBE.TYPES.Globe = function (cid) {
 	function clearCountryColors() {
 		var shader = shaders.earth.uniforms.countrydata.value;
 		for (var i = 0; i < 256; i ++) {
-			/*
 			shader.image.data[i * 4 + 0] = 0;
 			shader.image.data[i * 4 + 1] = 0;
-			shader.image.data[i * 4 + 2] = 0; */
+			shader.image.data[i * 4 + 2] = 0;
 			shader.image.data[i * 4 + 3] = 0;
 			_switchCountryColor(i);
 		}
@@ -324,8 +323,14 @@ GLOBE.TYPES.Globe = function (cid) {
 		countryTweenMap[idx] = tween;
 	}
 
+	/* Create a raw datastructure in RGBA format) 
+	 * width	- Width of the texture
+	 * height	- height of the textzre
+	 * val		- Default value for each color channel. */
+	function createDataTexture(width, height, val) {
+		var depth = 4; // Depth for RGBA Format.
+		var format = THREE.RGBAFormat;
 
-	function createDataTexture(width, height,depth,val) {
 		var size = width * height;
 		var data = new Uint8Array( depth * size );
 
@@ -335,12 +340,13 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
-		var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
+		//var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, type, mapping, wrapS, wrapT, magFilter, minFilter, anisotropy )
+		var text = new THREE.DataTexture(data, width, height, format);
 		//THREE.UnsignedByteType  // has depth 1
 		//THREE.RGBFormat // has depth 3
 		//THREE.RGBAFormat // has depth 4
-		//
 		//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		text.minFilter = THREE.NearestFilter;
 		text.needsUpdate = true;
 		return text;
 	}
@@ -353,7 +359,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		var width =  360 * det;
 		var height =  180 * det;
-		var ret = createDataTexture(width,height,4,0);
+		var ret = createDataTexture(width,height,0);
 
 		return ret;
 	}
@@ -382,10 +388,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function createCountryDataTexture() {
-		var ret = createDataTexture(256,2,4,0);
-		ret.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
-		ret.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-		return ret;
+		return createDataTexture(256,1,0);
 	}
 
 	function calibrate_longitude(x) {
@@ -435,9 +438,9 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		vertices = new Float32Array();
 		for (var i = 0; i < particle_count;i++) {
-			vertices[i*1] = 0.0;
-			vertices[i*2] = 1.0;
-			vertices[i*3] = 0.0;
+			vertices[i * 3 + 0] = 0.0;
+			vertices[i * 3 + 1] = 1.0;
+			vertices[i * 3 + 2] = 0.0;
 
 			longs[i] = degree_to_radius_longitude(0);
 			lats[i] = degree_to_radius_latitude(0);
@@ -1521,8 +1524,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var overGlobe = false; /* is mouse over globe */
 		var overRenderer = true; /* is mouse over renderer */
 
-		
-
 		shaders = {
 			'earth' : {
 				uniforms: {
@@ -1624,7 +1625,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform sampler2D geodata;',
 					'uniform float cintensity;',
 					'uniform float calpha;',
-					'uniform vec4 selection;',
+					'uniform vec4 selection;', //Color to use for a hovered country
 					'uniform float bintensity;',
 					'uniform vec3 lightvector;',
 					'uniform vec3 lightcolor;',
@@ -1633,6 +1634,8 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform vec3 acolor;',
 					'varying vec3 vNormal;',
 					'varying vec2 vUv;',
+
+					//Smoothly compute countries hovered color (borders smoothed)
 					'float avgcol(float tv) {',
 						'float ret = 0.0;',
 						'int count = 0;',
@@ -1645,29 +1648,39 @@ GLOBE.TYPES.Globe = function (cid) {
 						'ret*= 1.0/float(count);',
 						'return ret;',
 					'}',
+
 					'void main() {',
 							  'vec2 pos = vec2(mousex, (1.0-mousey));',
 							  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
 							  'vec2 vUv2 = vec2(vUv.x,(vUv.y/2.0));',
 							  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
+
+							  //Check if country is hovered by mouse
 							  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
+
+								//Apply smoothed color based on actual texture and highlight color (selection)
 								'ccol = vec4(selection.xyz,calpha*selection.w);',
 								'ccol*=avgcol(texture2D(countrymap,pos).x);',
+
 							  '} else {',
+
+					            //Check if country has a datacolor.
 								'float par = 256.0;',
 								'int cidx = int(texture2D(countrymap,vUv).x * par);',
 								'float cc = float(cidx) / par;',
 								'if (cc > 0.0) {',
+
+									//Set the country Color from the countrydata texture.
 									'vec2 datapos = vec2(cc,0.0);',
 									'vec4 col = texture2D(countrydata,datapos);',
-									'ccol = vec4(col.xyz,calpha*col.w);',
+									'ccol = vec4(col.xyz,calpha*col.w*cintensity);',
 								'}',
 							  '}',
 
+							  //Compute color for cities.
 							  'vec3 city_col = lightcolor;',
 							  'float city_fac = 0.0;',
 							  'float day_factor = 1.0;',
-
 							  'if (lightcolor.x >= 0.0 && lightcolor.y >= 0.0 && lightcolor.z >= 0.0) {',
 								  'vec3 lightv= normalize(lightvector);',
 								  'day_factor = max(0.0,dot(vNormal, lightv));',
@@ -1676,10 +1689,9 @@ GLOBE.TYPES.Globe = function (cid) {
 								  '}',
 							  '}',
 
+							  /* Colorization (light and dark)*/
 							  'float intensity = 1.15 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) );',
 							  'vec4 diffuse = texture2D( texture, vUv1 );',
-
-							  /* Colorization */
 							  'float col_int = color_intensity * (day_factor);',
 							  'if (col_int < 1.0) {;',
 								'float ci = (1.0 - col_int);',
@@ -1690,23 +1702,29 @@ GLOBE.TYPES.Globe = function (cid) {
 								'diffuse = vec4(diffuse.x - xa,diffuse.y - ya, diffuse.z - za,diffuse.a);',
 							  '}',
 
-							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);', /* background color */
-							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);', /* background color */
+							  //Background color
+							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);',
+							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);',
 
+							  //Compute geodata color
 							  'vec4 geo = texture2D(geodata,vUv);',
 							  'diffuse = vec4(mix(diffuse.xyz,geo.xyz,geo.a),diffuse.a);', /* geocolor */
-							  //'if (ccol.r > 0.2 || ccol.g > 0.2 || ccol.b > 0.2) {',
+
 							  'if (ccol.w > 0.0) {',
-							  	//'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w * cintensity * 2.0),diffuse.a);', /* Country Color */
 							  	'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w),diffuse.a);', /* Country Color */
 							  '}',
-
+								
+					          //Border Color
 							  'diffuse = vec4(mix(diffuse.xyz,bcolor,(texture2D(texture,vUv2).y * bintensity)),1.0);', /* Border Color */
 
+							  // City Color
 							  'diffuse = vec4(mix(diffuse.xyz,city_col,city_fac),diffuse.a);', /* City Color */
 
+							  //Atmosphere
 							  'vec3 atmosphere = mix(diffuse.xyz,acolor,pow( intensity, 3.0 ));', /* atmosphere */
 							  'diffuse = vec4(mix(diffuse.xyz,atmosphere,day_factor),diffuse.a);', /* atmosphere */
+
+							  //Get it out
 							  'gl_FragColor = (diffuse.a * brightness) * diffuse;',
 					'}'
 				].join('\n')
