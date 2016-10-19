@@ -432,40 +432,43 @@ GLOBE.TYPES.Globe = function (cid) {
 		var random = shader.attributes.random.value;
 		var color = shader.attributes.color.value;
 		var hf = shader.attributes.heightfactor.value;
-		//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
+
+		shader.uniforms.texture.value.wrapS = THREE.RepeatWrapping;
+		shader.uniforms.texture.value.wrapT = THREE.RepeatWrapping;
 
 		particles = new THREE.BufferGeometry();
+		positions = new Float32Array(particle_count * 3);
 
-		vertices = new Float32Array();
+		vertex = new THREE.Vector3(0.0,0.0,0.0);
 		for (var i = 0; i < particle_count;i++) {
-			vertices[i * 3 + 0] = 0.0;
-			vertices[i * 3 + 1] = 1.0;
-			vertices[i * 3 + 2] = 0.0;
+			vertex.toArray( positions, i * 3 );
 
 			longs[i] = degree_to_radius_longitude(0);
 			lats[i] = degree_to_radius_latitude(0);
 			created[i] = tic;
 			destx[i] = degree_to_radius_longitude(0);
 			desty[i] = degree_to_radius_latitude(0);
-			lifetimes[i] = 0;
-			sizes[i] = 0;
+			//lifetimes[i] = 0.0;
+			lifetimes[i] = 1.0; //DEBUG
+			//sizes[i] = 0.0;
+			sizes[i] = 1.0; //DEBUG
 			random[i] = 0.5;
 			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
-			hf[i] = 1.0;
-
+			hf[i] = 2.0; //DEBUG
+			//hf[i] = 1.0;
 		}
 
-		particles.addAttribute('position', new THREE.BufferAttribute( vertices, 3 ) );
-		particles.addAttribute('longitude', new THREE.BufferAttribute(  longs, 1));
-		particles.addAttribute('latitude', new THREE.BufferAttribute(  lats, 1));
-		particles.addAttribute('longitude_d', new THREE.BufferAttribute(  destx, 1));
-		particles.addAttribute('latitude_d', new THREE.BufferAttribute(  desty, 1));
-		particles.addAttribute('lifetime', new THREE.BufferAttribute(  lifetimes, 1));
-		particles.addAttribute('created', new THREE.BufferAttribute(  created, 1));
-		particles.addAttribute('size', new THREE.BufferAttribute(  sizes, 1));
-		particles.addAttribute('radnom', new THREE.BufferAttribute(  random, 1));
-		particles.addAttribute('color', new THREE.BufferAttribute(  color, 1)); //TODO: check correctness
-		particles.addAttribute('heightfactor', new THREE.BufferAttribute(  hf, 1));
+		particles.addAttribute('position', new THREE.BufferAttribute(positions, 3 ) );
+		particles.addAttribute('longitude', new THREE.BufferAttribute(longs, 1));
+		particles.addAttribute('latitude', new THREE.BufferAttribute(lats, 1));
+		particles.addAttribute('longitude_d', new THREE.BufferAttribute(destx, 1));
+		particles.addAttribute('latitude_d', new THREE.BufferAttribute(desty, 1));
+		particles.addAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+		particles.addAttribute('created', new THREE.BufferAttribute(created, 1));
+		particles.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+		particles.addAttribute('random', new THREE.BufferAttribute(random, 1));
+		particles.addAttribute('color', new THREE.BufferAttribute(color, 4)); //TODO: check correctness
+		particles.addAttribute('heightfactor', new THREE.BufferAttribute(hf, 1));
 		particles.dynamic = true;
 
 		var material = new THREE.ShaderMaterial ( {
@@ -473,52 +476,20 @@ GLOBE.TYPES.Globe = function (cid) {
 			//attributes: shader.attributes,
 			vertexShader: shader.vertexShader,
 			fragmentShader: shader.fragmentShader,
+
+			//blending: obj.particleBlending,
+			blending: THREE.AdditiveBlending, //DEBUG
 			transparent: true,
-			blending: obj.particleBlending,
-			depthTest: true,
-			wireframe: true,
-			depthWrite: false //Magic setting to make particles not clipping ;)
+			//depthTest: true,
+			//wireframe: true,
+			//depthWrite: false //Magic setting to make particles not clipping ;)
 		});
 
-		/*
-
-		for (var i = 0; i < particle_count;i++) {
-
-			particles.vertices[i] =  new THREE.Vector3(0,0,0);
-			longs[i] = degree_to_radius_longitude(0);
-			lats[i] = degree_to_radius_latitude(0);
-			created[i] = tic;
-			destx[i] = degree_to_radius_longitude(0);
-			desty[i] = degree_to_radius_latitude(0);
-			lifetimes[i] = 0;
-			sizes[i] = 0;
-			random[i] = 0.5;
-			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
-			hf[i] = 1.0;
-		}
-
-		var material = new THREE.ShaderMaterial ( {
-			uniforms: shader.uniforms,
-			attributes: shader.attributes,
-			vertexShader: shader.vertexShader,
-			fragmentShader: shader.fragmentShader,
-			transparent: true,
-			blending: obj.particleBlending,
-			depthTest: true,
-			wireframe: true,
-			depthWrite: false //Magic setting to make particles not clipping ;)
-		});
-
-		*/
-
-		particleSystem = new THREE.Points(
-			particles,
-			material
-		);
+		particleSystem = new THREE.Points( particles, material);
 
 		particleSystem.dynamic=true;
 		particleScene.add(particleSystem);
-		console.log("Particles initialized.");
+		console.log("Particles initialized:");
 	}
 
 	function createSourceParticle(x,y,c,hf) {
@@ -538,55 +509,57 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function createParticle(x,y,dx,dy,lifetime,particleSize,c,hf) {
 		if (particles !== undefined) {
-			var shader = shaders.particle;
-			var longs = shader.attributes.longitude.value;
-			var lats = shader.attributes.latitude.value;
-			var destx = shader.attributes.longitude_d.value;
-			var desty = shader.attributes.latitude_d.value;
-			var lifetimes = shader.attributes.lifetime.value;
-			var created = shader.attributes.created.value;
-			var sizes = shader.attributes.size.value;
-			var random = shader.attributes.random.value;
-			var color = shader.attributes.color.value;
-			var heightfactor = shader.attributes.heightfactor.value;
+			var attrib = particleSystem.geometry.attributes;
+			var longs = attrib.longitude;
+			var lats = attrib.latitude;
+			var destx = attrib.longitude_d;
+			var desty = attrib.latitude_d;
+			var lifetimes = attrib.lifetime;
+			var created = attrib.created;
+			var sizes = attrib.size;
+			var random = attrib.random;
+			var color = attrib.color;
+			var heightfactor = attrib.heightfactor;
 
 			var i = particle_cursor;
-
 
 			if ( (tic - created[i]) < lifetimes[i] ) {
 				console.log("Particle buffer overflow ;)");
 			}
 
-			longs[i] = (degree_to_radius_longitude(x));
-			lats[i] = (degree_to_radius_latitude(y));
-			created[i] = (tic);
-			destx[i] = (degree_to_radius_longitude(dx));
-			desty[i] = (degree_to_radius_latitude(dy));
-			lifetimes[i] = (lifetime);
-			sizes[i] = particleSize;
-			random[i] = Math.random();
+			longs.array[i] = (degree_to_radius_longitude(x));
+			lats.array[i] = (degree_to_radius_latitude(y));
+			created.array[i] = (tic);
+			destx.array[i] = (degree_to_radius_longitude(dx));
+			desty.array[i] = (degree_to_radius_latitude(dy));
+			lifetimes.array[i] = (lifetime);
+			sizes.array[i] = particleSize;
+			random.array[i] = Math.random();
 
 			if (c !== undefined && c !== null) {
-				color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
+				//color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
+				arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity).toArray(color.array,i*4);
 			}
 
 			if (hf !== undefined && hf !== null) {
-				heightfactor[i] = hf;
+				heightfactor.array[i] = hf;
 			}
 
-			shader.attributes.color.needsUpdate=true;
-			shader.attributes.heightfactor.needsUpdate=true;
-			shader.attributes.longitude.needsUpdate=true;
-			shader.attributes.latitude.needsUpdate=true;
-			shader.attributes.longitude_d.needsUpdate=true;
-			shader.attributes.latitude_d.needsUpdate=true;
-			shader.attributes.created.needsUpdate=true;
-			shader.attributes.lifetime.needsUpdate=true;
-			shader.attributes.size.needsUpdate=true;
-			shader.attributes.random.needsUpdate=true;
-
+			/* tell three js to update attributes on GPU */
+			color.needsUpdate=true;
+			heightfactor.needsUpdate=true;
+			longs.needsUpdate=true;
+			lats.needsUpdate=true;
+			destx.needsUpdate=true;
+			desty.needsUpdate=true;
+			created.needsUpdate=true;
+			lifetimes.needsUpdate=true;
+			sizes.needsUpdate=true;
+			random.needsUpdate=true;
+			heightfactor.needsUpdate=true;
 			particle_cursor++;
 
+			/* make particles a ring-buffer */
 			if (particle_cursor > particle_count) {
 				particle_cursor = 0;
 			}
@@ -1624,7 +1597,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform sampler2D countrydata;',
 					'uniform sampler2D geodata;',
 					'uniform float cintensity;',
-					'uniform float calpha;',
+					'uniform float calpha;', //TODO: not used anymore ?
 					'uniform vec4 selection;', //Color to use for a hovered country
 					'uniform float bintensity;',
 					'uniform vec3 lightvector;',
@@ -1800,43 +1773,43 @@ GLOBE.TYPES.Globe = function (cid) {
 				attributes: {
 					longitude: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					latitude: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					longitude_d: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					latitude_d: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					created: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					lifetime: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					color: {
 						type: 'v4',
-						value: new Uint8Array()
+						value: new Uint8Array(particle_count * 4)
 					},
 					size: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					}, 
 					heightfactor: {
 						type: 'f',
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					},
 					random: { 	
 						type: "f", 
-						value: new Float32Array()
+						value: new Float32Array(particle_count)
 					}
 
 				},
@@ -1871,10 +1844,10 @@ GLOBE.TYPES.Globe = function (cid) {
 
 					'varying float age;',
 					//'varying vec2 vUv;',
-					'vec4 convert_from_polar( vec3 coord )',
+					'vec4 convert_from_polar(vec3 coord)',
 					'{',
-						'float tmp = cos( coord.y );',
-						'vec4 res = vec4(tmp * sin( coord.x ), sin( coord.y ), tmp * cos( coord.x ), 0.0) * coord.z;',
+						'float tmp = cos(coord.y);',
+						'vec4 res = vec4(tmp * sin(coord.x), sin(coord.y), tmp * cos(coord.x), 0.0) * coord.z;',
 						'res.w = 1.0;',
 						'return res;',
 					'}',
@@ -1882,20 +1855,18 @@ GLOBE.TYPES.Globe = function (cid) {
 					'void main() {',
 						'age = ((max(now-created,0.0) / (lifetime + random * lifetime * 0.3)));',
 						'col = color;',
-						//'float age = ((max(now-created,0.0) /lifetime));',
 						'if ( age <= 1.0 ) {',
 							'vec2 way = vec2( (longitude*(1.0-age) + longitude_d*age), (latitude*(1.0-age) + latitude_d*age));',
 							'float dage = age * 2.0;',
 							'if (dage > 1.0) { dage = 2.0 - dage; }',
-							//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
-							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart ));',
+							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart));',
+
 							'gl_PointSize =(0.5 + dage *0.5) * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
 							'gl_Position = projectionMatrix * modelViewMatrix * coord;',
 						'} else {',
 							'gl_PointSize = 0.0;',
 							'gl_Position = projectionMatrix * modelViewMatrix * vec4(0.0,0.0,0.0,1.0);',
 						'}',
-						//'vUv = uv;',
 					'}'
 
 				].join('\n'),
@@ -1906,6 +1877,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform float v;',
 					//'varying vec2 vUv;',
 					'void main() {',
+
 						'float dage = age * 2.0;',
 						'if (dage > 1.0) { dage = 2.0 - dage; }',
 						//'float d = texture2D( texture, gl_PointCoord ).a;',
@@ -1913,22 +1885,23 @@ GLOBE.TYPES.Globe = function (cid) {
 
 						'float d = texture2D( texture, gl_PointCoord ).w ;',
 						//'float d = 1.0;',
-						/*
-						"vec2 vUv = gl_PointCoord;",
-						"float d = 0.0;",
+					//
+						//"vec2 vUv = gl_PointCoord;",
+						//"float d = 0.0;",
 
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
-						*/
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
 						'gl_FragColor = vec4(dage * d * d * col.xyz,d);',
-						//'gl_FragColor = vec4(dage * d * d * col.xyz,d * col.w);',
+						//'gl_FragColor = vec4(dage * d * d * col.xyz,0.5);', //DEBUG
+						'gl_FragColor = vec4(dage * d * d * vec3(1.0,1.0,1.0),0.5);', //DEBUG
+						//'gl_FragColor = vec4(1.0,1.0,1.0,0.5);', //DEBUG
 					
 					'}'
 				].join('\n')
