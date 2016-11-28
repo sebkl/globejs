@@ -53,7 +53,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		p.add(obj,'particleLifetime',1,1000);
 		p.addColor(obj,'particleColor').onChange(function(value) {
 			for (var i = 0; i < particle_count;i++) {
-				shaders.particle.attributes.color.value[i] = arrayColorToVector(obj.particleColorFilter(value),1.0);
+				arrayColorToVector(obj.particleColorFilter(value),1.0).toArray(shaders.particle.attributes.color.value, i * 4);
 			}
 			//shaders.particle.attributes.needsUpdate = true;
 		});
@@ -379,7 +379,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var longval = Math.round(shader.image.width *((lon + 180)/360));
 		var latval = Math.round(shader.image.height * ((lat + 90)/180));
 		var i = (shader.image.width * latval) + longval;
-		console.log(longval + " " + latval + " " + i);
 		shader.image.data[ i * 4 + 0] = col.r * 255;
 		shader.image.data[ i * 4 + 1] = col.g * 255;
 		shader.image.data[ i * 4 + 2] = col.b * 255;
@@ -448,14 +447,11 @@ GLOBE.TYPES.Globe = function (cid) {
 			created[i] = tic;
 			destx[i] = degree_to_radius_longitude(0);
 			desty[i] = degree_to_radius_latitude(0);
-			//lifetimes[i] = 0.0;
-			lifetimes[i] = 1.0; //DEBUG
-			//sizes[i] = 0.0;
-			sizes[i] = 1.0; //DEBUG
+			lifetimes[i] = 0.0;
+			sizes[i] = 0.0;
 			random[i] = 0.5;
-			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
-			hf[i] = 2.0; //DEBUG
-			//hf[i] = 1.0;
+			arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity).toArray(color, i * 4);
+			hf[i] = 1.0;
 		}
 
 		particles.addAttribute('position', new THREE.BufferAttribute(positions, 3 ) );
@@ -467,22 +463,20 @@ GLOBE.TYPES.Globe = function (cid) {
 		particles.addAttribute('created', new THREE.BufferAttribute(created, 1));
 		particles.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
 		particles.addAttribute('random', new THREE.BufferAttribute(random, 1));
-		particles.addAttribute('color', new THREE.BufferAttribute(color, 4)); //TODO: check correctness
+		particles.addAttribute('color', new THREE.BufferAttribute(color, 4));
 		particles.addAttribute('heightfactor', new THREE.BufferAttribute(hf, 1));
 		particles.dynamic = true;
 
 		var material = new THREE.ShaderMaterial ( {
 			uniforms: shader.uniforms,
-			//attributes: shader.attributes,
 			vertexShader: shader.vertexShader,
 			fragmentShader: shader.fragmentShader,
-
 			//blending: obj.particleBlending,
 			blending: THREE.AdditiveBlending, //DEBUG
 			transparent: true,
-			//depthTest: true,
+			depthTest: true,
 			//wireframe: true,
-			//depthWrite: false //Magic setting to make particles not clipping ;)
+			depthWrite: false //Magic setting to make particles not clipping ;)
 		});
 
 		particleSystem = new THREE.Points( particles, material);
@@ -539,6 +533,10 @@ GLOBE.TYPES.Globe = function (cid) {
 			if (c !== undefined && c !== null) {
 				//color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
 				arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity).toArray(color.array,i*4);
+				color.array[(i*4) +0] = 1.0;
+				color.array[(i*4) +1] = 1.0;
+				color.array[(i*4) +2] = 1.0;
+				color.array[(i*4) +3] = 1.0;
 			}
 
 			if (hf !== undefined && hf !== null) {
@@ -557,6 +555,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			sizes.needsUpdate=true;
 			random.needsUpdate=true;
 			heightfactor.needsUpdate=true;
+			color.needsUpdate=true;
 			particle_cursor++;
 
 			/* make particles a ring-buffer */
@@ -639,7 +638,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	/* Initialize geometry required by data pillars. */
 	function buildDataPillars() {
-		pillarGeometry = new THREE.CubeGeometry(0.75, 0.75, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
+		pillarGeometry = new THREE.CubeGeometry(1, 1, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
 		for (var i = 0; i < pillarGeometry.vertices.length; i++) {
 			var vertex = pillarGeometry.vertices[i];
 			//vertex.position.z += 0.5;
@@ -654,7 +653,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	 *  factor - normalized size and color factor (0.0 - 1.0) 
 	 *  */
 	function addDataPillar(lat,lng,factor) {
-		return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
+		return addPillar(lat,lng,factor, GLOBE.HELPER.factorToColor(factor).getHex());
 	}
 
 	/* Add a data pillar for a given country.
@@ -722,14 +721,12 @@ GLOBE.TYPES.Globe = function (cid) {
 						v.y = from.y*(1.0-age) + to.y * age;
 						v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
 						var t = convert_from_polar(v);
-						//console.log("(" + t.x +"," + t.y + "," + t.z + ")");
 						lineGeometry.vertices.push(t);
 				}
 			} catch (e) {
 				console.log(" Adding line failed: " + e);
 			}
 		}
-		console.log("Added : " + idx);
 
 		var lineMaterial = new THREE.LineBasicMaterial( { 
 				color: 		LINE_COLOR, 
@@ -759,6 +756,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		lines = [];
 	}
 
+	function _pillarSize(fac) {
+		return RADIUS + (fac * PILLAR_FULLSIZE);
+	}
+
 	function _setPillarData(factor) {
 		var pillar = this;
 		this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
@@ -766,7 +767,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					z: pillar.scale.z
 				} )
 				.to( {
-					z: -((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE)
+					z: _pillarSize(factor)
 				}, 200 )
 				.easing( TWEEN.Easing.Linear.EaseNone )
 				.onUpdate( function () {
@@ -778,13 +779,9 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function addPillar(lng,lat, size,color) {
 		var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
-
 		var pillar = new THREE.Mesh(pillarGeometry, new THREE.MeshBasicMaterial( { color: color }));
-
-		pillar.position = pos;
-
-		pillar.lookAt(scene.position);
-		pillar.scale.z = -((size*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
+		pillar.lookAt(pos);
+		pillar.scale.z = _pillarSize(size);
 		blendPillar(pillar,0.0,1.0);
 		pillars.push(pillar);
 		scene.add(pillar);
@@ -793,7 +790,6 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function blendPillar(pillar,f_fac,t_fac,complete) {
-
 		var tween = new TWEEN.Tween( { 
 					x: pillar.scale.x* f_fac,
 					y: pillar.scale.y* f_fac,
@@ -871,7 +867,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			var val = data[i][2]/max;
 			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
 			var color = GLOBE.HELPER.factorToColor(val);
-			var scale = -((val*PILLAR_FULLSIZE));
+			var scale = _pillarSize(val);
 			point.scale.z = scale;
 			point.position = pos;
 			for (var ii = 0; ii < point.geometry.faces.length; ii++) {
@@ -895,7 +891,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	function changePillarFactor(pillar,factor) {
 		pillar.material.color = GLOBE.HELPER.factorToColor(factor); // TODO: include this in animation.
 		var tween = new TWEEN.Tween( {x: pillar.scale.z } )
-			.to ( {x: -(PILLAR_FULLSIZE*factor)}, 1000 )
+			.to ( {x: _pillarSize(factor)}, 1000 )
 			.easing( TWEEN.Easing.Linear.EaseNone )
 			.onUpdate( function () {
 				pillar.scale.z = this.x;
@@ -983,14 +979,12 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function onMouseInContainer(e) {
-		console.log("Inside container");
 		overRenderer = true;
 		//container.addEventListener('mousedown', onMouseDown, true);
 		$(containerId).bind('mousedown',undefined, onMouseDown);
 	}
 
 	function onMouseOutContainer(e) {
-		console.log("Outside container");
 		updateHoverHandler(NO_COUNTRY);	
 		overRenderer = false;
 		$(containerId).unbind('mousedown', onMouseDown);
@@ -1379,6 +1373,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	function setParticleSize(size) {
 		obj.particleSize = size;
 	}
+
 	try {
 		var obj = {};
 		/* container variables */
@@ -1397,9 +1392,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		var PI_HALF = Math.PI / 2;
 		var RADIUS = 200;
 		var ATMOSPHERE_SIZE_FACTOR = 1.11;
-		var ZOOM_SPEED = 50;
+		var ZOOM_SPEED = 0.25 * RADIUS;
 		var ZOOM_CLICK_STEP = ZOOM_SPEED*2;
-		var PILLAR_FULLSIZE = 100;
+		var PILLAR_FULLSIZE = 0.5 * RADIUS;
 		var NO_COUNTRY = GLOBE.GEO.NO_COUNTRY;
 		var COLOR_BLACK = new THREE.Color(0x000000);
 		var COLOR_WHITE = new THREE.Color(0xffffff);
@@ -1797,7 +1792,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					color: {
 						type: 'v4',
-						value: new Uint8Array(particle_count * 4)
+						value: new Float32Array(particle_count * 4)
 					},
 					size: {
 						type: 'f',
@@ -1900,7 +1895,7 @@ GLOBE.TYPES.Globe = function (cid) {
 						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
 						'gl_FragColor = vec4(dage * d * d * col.xyz,d);',
 						//'gl_FragColor = vec4(dage * d * d * col.xyz,0.5);', //DEBUG
-						'gl_FragColor = vec4(dage * d * d * vec3(1.0,1.0,1.0),0.5);', //DEBUG
+						//'gl_FragColor = vec4(dage * d * d * vec3(1.0,1.0,1.0),0.5);', //DEBUG
 						//'gl_FragColor = vec4(1.0,1.0,1.0,0.5);', //DEBUG
 					
 					'}'
