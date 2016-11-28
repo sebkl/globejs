@@ -1,5 +1,5 @@
 DISTDIR=HTDOCS
-EDITOR=editor
+EDITOR=gvim
 VIEWER=open
 GO=go
 COMPILE_PIPE=| $(GO) bin/jscompilepipe.go 

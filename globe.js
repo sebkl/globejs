@@ -53,7 +53,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		p.add(obj,'particleLifetime',1,1000);
 		p.addColor(obj,'particleColor').onChange(function(value) {
 			for (var i = 0; i < particle_count;i++) {
-				shaders.particle.attributes.color.value[i] = arrayColorToVector(obj.particleColorFilter(value),1.0);
+				arrayColorToVector(obj.particleColorFilter(value),1.0).toArray(shaders.particle.attributes.color.value, i * 4);
 			}
 			//shaders.particle.attributes.needsUpdate = true;
 		});
@@ -277,10 +277,9 @@ GLOBE.TYPES.Globe = function (cid) {
 	function clearCountryColors() {
 		var shader = shaders.earth.uniforms.countrydata.value;
 		for (var i = 0; i < 256; i ++) {
-			/*
 			shader.image.data[i * 4 + 0] = 0;
 			shader.image.data[i * 4 + 1] = 0;
-			shader.image.data[i * 4 + 2] = 0; */
+			shader.image.data[i * 4 + 2] = 0;
 			shader.image.data[i * 4 + 3] = 0;
 			_switchCountryColor(i);
 		}
@@ -324,8 +323,14 @@ GLOBE.TYPES.Globe = function (cid) {
 		countryTweenMap[idx] = tween;
 	}
 
+	/* Create a raw datastructure in RGBA format) 
+	 * width	- Width of the texture
+	 * height	- height of the textzre
+	 * val		- Default value for each color channel. */
+	function createDataTexture(width, height, val) {
+		var depth = 4; // Depth for RGBA Format.
+		var format = THREE.RGBAFormat;
 
-	function createDataTexture(width, height,depth,val) {
 		var size = width * height;
 		var data = new Uint8Array( depth * size );
 
@@ -335,12 +340,13 @@ GLOBE.TYPES.Globe = function (cid) {
 			}
 		}
 
-		var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat );
+		//var text = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, type, mapping, wrapS, wrapT, magFilter, minFilter, anisotropy )
+		var text = new THREE.DataTexture(data, width, height, format);
 		//THREE.UnsignedByteType  // has depth 1
 		//THREE.RGBFormat // has depth 3
 		//THREE.RGBAFormat // has depth 4
-		//
 		//text.minFilter = THREE.NearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
+		text.minFilter = THREE.NearestFilter;
 		text.needsUpdate = true;
 		return text;
 	}
@@ -353,7 +359,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		var width =  360 * det;
 		var height =  180 * det;
-		var ret = createDataTexture(width,height,4,0);
+		var ret = createDataTexture(width,height,0);
 
 		return ret;
 	}
@@ -373,7 +379,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var longval = Math.round(shader.image.width *((lon + 180)/360));
 		var latval = Math.round(shader.image.height * ((lat + 90)/180));
 		var i = (shader.image.width * latval) + longval;
-		console.log(longval + " " + latval + " " + i);
 		shader.image.data[ i * 4 + 0] = col.r * 255;
 		shader.image.data[ i * 4 + 1] = col.g * 255;
 		shader.image.data[ i * 4 + 2] = col.b * 255;
@@ -382,10 +387,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function createCountryDataTexture() {
-		var ret = createDataTexture(256,2,4,0);
-		ret.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
-		ret.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
-		return ret;
+		return createDataTexture(256,1,0);
 	}
 
 	function calibrate_longitude(x) {
@@ -426,47 +428,62 @@ GLOBE.TYPES.Globe = function (cid) {
 		var lifetimes = shader.attributes.lifetime.value;
 		var created = shader.attributes.created.value;
 		var sizes = shader.attributes.size.value;
-		var random = shader.attributes.size.value;
+		var random = shader.attributes.random.value;
 		var color = shader.attributes.color.value;
 		var hf = shader.attributes.heightfactor.value;
-		//var dummyTexture = THREE.ImageUtils.generateDataTexture( 1, 1, new THREE.Color( 0xffffff ) );
 
-		particles = new THREE.Geometry();
+		shader.uniforms.texture.value.wrapS = THREE.RepeatWrapping;
+		shader.uniforms.texture.value.wrapT = THREE.RepeatWrapping;
+
+		particles = new THREE.BufferGeometry();
+		positions = new Float32Array(particle_count * 3);
+
+		vertex = new THREE.Vector3(0.0,0.0,0.0);
 		for (var i = 0; i < particle_count;i++) {
+			vertex.toArray( positions, i * 3 );
 
-			particles.vertices[i] =  new THREE.Vector3(0,0,0);
 			longs[i] = degree_to_radius_longitude(0);
 			lats[i] = degree_to_radius_latitude(0);
 			created[i] = tic;
 			destx[i] = degree_to_radius_longitude(0);
 			desty[i] = degree_to_radius_latitude(0);
-			lifetimes[i] = 0;
-			sizes[i] = 0;
+			lifetimes[i] = 0.0;
+			sizes[i] = 0.0;
 			random[i] = 0.5;
-			color[i] = arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity);
+			arrayColorToVector(obj.particleColorFilter(obj.particleColor),obj.particleIntensity).toArray(color, i * 4);
 			hf[i] = 1.0;
 		}
 
+		particles.addAttribute('position', new THREE.BufferAttribute(positions, 3 ) );
+		particles.addAttribute('longitude', new THREE.BufferAttribute(longs, 1));
+		particles.addAttribute('latitude', new THREE.BufferAttribute(lats, 1));
+		particles.addAttribute('longitude_d', new THREE.BufferAttribute(destx, 1));
+		particles.addAttribute('latitude_d', new THREE.BufferAttribute(desty, 1));
+		particles.addAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+		particles.addAttribute('created', new THREE.BufferAttribute(created, 1));
+		particles.addAttribute('size', new THREE.BufferAttribute(sizes, 1));
+		particles.addAttribute('random', new THREE.BufferAttribute(random, 1));
+		particles.addAttribute('color', new THREE.BufferAttribute(color, 4));
+		particles.addAttribute('heightfactor', new THREE.BufferAttribute(hf, 1));
+		particles.dynamic = true;
+
 		var material = new THREE.ShaderMaterial ( {
 			uniforms: shader.uniforms,
-			attributes: shader.attributes,
 			vertexShader: shader.vertexShader,
 			fragmentShader: shader.fragmentShader,
+			//blending: obj.particleBlending,
+			blending: THREE.AdditiveBlending, //DEBUG
 			transparent: true,
-			blending: obj.particleBlending,
 			depthTest: true,
-			wireframe: true,
+			//wireframe: true,
 			depthWrite: false //Magic setting to make particles not clipping ;)
 		});
 
-		particleSystem = new THREE.ParticleSystem(
-			particles,
-			material
-		);
+		particleSystem = new THREE.Points( particles, material);
 
 		particleSystem.dynamic=true;
 		particleScene.add(particleSystem);
-		console.log("Particles initialized.");
+		console.log("Particles initialized:");
 	}
 
 	function createSourceParticle(x,y,c,hf) {
@@ -486,55 +503,62 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function createParticle(x,y,dx,dy,lifetime,particleSize,c,hf) {
 		if (particles !== undefined) {
-			var shader = shaders.particle;
-			var longs = shader.attributes.longitude.value;
-			var lats = shader.attributes.latitude.value;
-			var destx = shader.attributes.longitude_d.value;
-			var desty = shader.attributes.latitude_d.value;
-			var lifetimes = shader.attributes.lifetime.value;
-			var created = shader.attributes.created.value;
-			var sizes = shader.attributes.size.value;
-			var random = shader.attributes.random.value;
-			var color = shader.attributes.color.value;
-			var heightfactor = shader.attributes.heightfactor.value;
+			var attrib = particleSystem.geometry.attributes;
+			var longs = attrib.longitude;
+			var lats = attrib.latitude;
+			var destx = attrib.longitude_d;
+			var desty = attrib.latitude_d;
+			var lifetimes = attrib.lifetime;
+			var created = attrib.created;
+			var sizes = attrib.size;
+			var random = attrib.random;
+			var color = attrib.color;
+			var heightfactor = attrib.heightfactor;
 
 			var i = particle_cursor;
-
 
 			if ( (tic - created[i]) < lifetimes[i] ) {
 				console.log("Particle buffer overflow ;)");
 			}
 
-			longs[i] = (degree_to_radius_longitude(x));
-			lats[i] = (degree_to_radius_latitude(y));
-			created[i] = (tic);
-			destx[i] = (degree_to_radius_longitude(dx));
-			desty[i] = (degree_to_radius_latitude(dy));
-			lifetimes[i] = (lifetime);
-			sizes[i] = particleSize;
-			random[i] = Math.random();
+			longs.array[i] = (degree_to_radius_longitude(x));
+			lats.array[i] = (degree_to_radius_latitude(y));
+			created.array[i] = (tic);
+			destx.array[i] = (degree_to_radius_longitude(dx));
+			desty.array[i] = (degree_to_radius_latitude(dy));
+			lifetimes.array[i] = (lifetime);
+			sizes.array[i] = particleSize;
+			random.array[i] = Math.random();
 
 			if (c !== undefined && c !== null) {
-				color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
+				//color[i] = arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity);
+				arrayColorToVector(obj.particleColorFilter(c),obj.particleIntensity).toArray(color.array,i*4);
+				color.array[(i*4) +0] = 1.0;
+				color.array[(i*4) +1] = 1.0;
+				color.array[(i*4) +2] = 1.0;
+				color.array[(i*4) +3] = 1.0;
 			}
 
 			if (hf !== undefined && hf !== null) {
-				heightfactor[i] = hf;
+				heightfactor.array[i] = hf;
 			}
 
-			shader.attributes.color.needsUpdate=true;
-			shader.attributes.heightfactor.needsUpdate=true;
-			shader.attributes.longitude.needsUpdate=true;
-			shader.attributes.latitude.needsUpdate=true;
-			shader.attributes.longitude_d.needsUpdate=true;
-			shader.attributes.latitude_d.needsUpdate=true;
-			shader.attributes.created.needsUpdate=true;
-			shader.attributes.lifetime.needsUpdate=true;
-			shader.attributes.size.needsUpdate=true;
-			shader.attributes.random.needsUpdate=true;
-
+			/* tell three js to update attributes on GPU */
+			color.needsUpdate=true;
+			heightfactor.needsUpdate=true;
+			longs.needsUpdate=true;
+			lats.needsUpdate=true;
+			destx.needsUpdate=true;
+			desty.needsUpdate=true;
+			created.needsUpdate=true;
+			lifetimes.needsUpdate=true;
+			sizes.needsUpdate=true;
+			random.needsUpdate=true;
+			heightfactor.needsUpdate=true;
+			color.needsUpdate=true;
 			particle_cursor++;
 
+			/* make particles a ring-buffer */
 			if (particle_cursor > particle_count) {
 				particle_cursor = 0;
 			}
@@ -562,8 +586,8 @@ GLOBE.TYPES.Globe = function (cid) {
 	function buildSphere() {
 		var shader = shaders.earth;
 
-		var texture = THREE.ImageUtils.loadTexture(atlas_url);
-		var countrymap = THREE.ImageUtils.loadTexture(cmap_url);
+		var texture = texloader.load(atlas_url);
+		var countrymap = texloader.load(cmap_url);
 
 		//texture.minFilter = THREE.NearestMipMapNearestFilter; /* DEFAULT : THREE.LinearMipMapLinearFilter; */
 		countrymap.magFilter = THREE.NearestFilter; /* DEFAULT: THREE.LinearFilter;  */
@@ -614,7 +638,7 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	/* Initialize geometry required by data pillars. */
 	function buildDataPillars() {
-		pillarGeometry = new THREE.CubeGeometry(0.75, 0.75, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
+		pillarGeometry = new THREE.CubeGeometry(1, 1, 1, 1, 1, 1, undefined, false, { px: true, nx: true, py: true, ny: true, pz: false, nz: true});
 		for (var i = 0; i < pillarGeometry.vertices.length; i++) {
 			var vertex = pillarGeometry.vertices[i];
 			//vertex.position.z += 0.5;
@@ -629,7 +653,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	 *  factor - normalized size and color factor (0.0 - 1.0) 
 	 *  */
 	function addDataPillar(lat,lng,factor) {
-		return addPillar(lat,lng,factor*PILLAR_FULLSIZE, GLOBE.HELPER.factorToColor(factor).getHex());
+		return addPillar(lat,lng,factor, GLOBE.HELPER.factorToColor(factor).getHex());
 	}
 
 	/* Add a data pillar for a given country.
@@ -697,14 +721,12 @@ GLOBE.TYPES.Globe = function (cid) {
 						v.y = from.y*(1.0-age) + to.y * age;
 						v.z = RADIUS + (Math.sin(age*Math.PI) * LINE_HFAC * RADIUS);
 						var t = convert_from_polar(v);
-						//console.log("(" + t.x +"," + t.y + "," + t.z + ")");
 						lineGeometry.vertices.push(t);
 				}
 			} catch (e) {
 				console.log(" Adding line failed: " + e);
 			}
 		}
-		console.log("Added : " + idx);
 
 		var lineMaterial = new THREE.LineBasicMaterial( { 
 				color: 		LINE_COLOR, 
@@ -734,6 +756,10 @@ GLOBE.TYPES.Globe = function (cid) {
 		lines = [];
 	}
 
+	function _pillarSize(fac) {
+		return RADIUS + (fac * PILLAR_FULLSIZE);
+	}
+
 	function _setPillarData(factor) {
 		var pillar = this;
 		this.material.color = new THREE.Color(GLOBE.HELPER.factorToColor(factor).getHex());
@@ -741,7 +767,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					z: pillar.scale.z
 				} )
 				.to( {
-					z: -((factor*PILLAR_FULLSIZE*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE)
+					z: _pillarSize(factor)
 				}, 200 )
 				.easing( TWEEN.Easing.Linear.EaseNone )
 				.onUpdate( function () {
@@ -753,13 +779,9 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function addPillar(lng,lat, size,color) {
 		var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
-
 		var pillar = new THREE.Mesh(pillarGeometry, new THREE.MeshBasicMaterial( { color: color }));
-
-		pillar.position = pos;
-
-		pillar.lookAt(scene.position);
-		pillar.scale.z = -((size*(1.0-MIN_PILLAR_SIZE)) + MIN_PILLAR_SIZE);
+		pillar.lookAt(pos);
+		pillar.scale.z = _pillarSize(size);
 		blendPillar(pillar,0.0,1.0);
 		pillars.push(pillar);
 		scene.add(pillar);
@@ -768,7 +790,6 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function blendPillar(pillar,f_fac,t_fac,complete) {
-
 		var tween = new TWEEN.Tween( { 
 					x: pillar.scale.x* f_fac,
 					y: pillar.scale.y* f_fac,
@@ -846,7 +867,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			var val = data[i][2]/max;
 			var pos =convert_from_polar(new THREE.Vector3(degree_to_radius_longitude(lng),degree_to_radius_latitude(lat),RADIUS));
 			var color = GLOBE.HELPER.factorToColor(val);
-			var scale = -((val*PILLAR_FULLSIZE));
+			var scale = _pillarSize(val);
 			point.scale.z = scale;
 			point.position = pos;
 			for (var ii = 0; ii < point.geometry.faces.length; ii++) {
@@ -870,7 +891,7 @@ GLOBE.TYPES.Globe = function (cid) {
 	function changePillarFactor(pillar,factor) {
 		pillar.material.color = GLOBE.HELPER.factorToColor(factor); // TODO: include this in animation.
 		var tween = new TWEEN.Tween( {x: pillar.scale.z } )
-			.to ( {x: -(PILLAR_FULLSIZE*factor)}, 1000 )
+			.to ( {x: _pillarSize(factor)}, 1000 )
 			.easing( TWEEN.Easing.Linear.EaseNone )
 			.onUpdate( function () {
 				pillar.scale.z = this.x;
@@ -958,14 +979,12 @@ GLOBE.TYPES.Globe = function (cid) {
 	}
 
 	function onMouseInContainer(e) {
-		console.log("Inside container");
 		overRenderer = true;
 		//container.addEventListener('mousedown', onMouseDown, true);
 		$(containerId).bind('mousedown',undefined, onMouseDown);
 	}
 
 	function onMouseOutContainer(e) {
-		console.log("Outside container");
 		updateHoverHandler(NO_COUNTRY);	
 		overRenderer = false;
 		$(containerId).unbind('mousedown', onMouseDown);
@@ -1051,7 +1070,6 @@ GLOBE.TYPES.Globe = function (cid) {
 
 	function init() {
 		scene = new THREE.Scene();
-		projector = new THREE.Projector();
 		//camera = new THREE.PerspectiveCamera( 45, width/height, 0.1, 10000);
 		//camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
 		camera = new THREE.PerspectiveCamera(30, width / height, 1, 10000);
@@ -1061,7 +1079,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		//renderer.setClearColor(0x000000, 0.0);
 		renderer.setClearColor(arrayColorToColor(obj.bgColor), 1.0);
 		renderer.autoClear = false;
-		renderer.setBlending(THREE.AdditiveBlending);
+		//renderer.setBlending(THREE.AdditiveBlending);
 
 		scene.add(camera);
 		camera.position.z = distance;
@@ -1134,7 +1152,7 @@ GLOBE.TYPES.Globe = function (cid) {
 			mouseOnDown.country = hovered_cc;
 			targetOnDown.x = target.x;
 			targetOnDown.y = target.y;
-			container.style.cursor = 'move';
+			$(containerId).css( 'cursor', 'move' );
 		}
 	}
 
@@ -1224,8 +1242,8 @@ GLOBE.TYPES.Globe = function (cid) {
 	function getIntersects(event) {
 		event.preventDefault();
 		var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
-		projector.unprojectVector( vector, camera );
-		var ray = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
+		var ray = new THREE.Raycaster();
+		ray.setFromCamera(vector,camera);
 		var intersects = ray.intersectObjects( [ sphere ] );
 		return intersects;
 	}
@@ -1355,11 +1373,11 @@ GLOBE.TYPES.Globe = function (cid) {
 	function setParticleSize(size) {
 		obj.particleSize = size;
 	}
+
 	try {
 		var obj = {};
 		/* container variables */
 		var containerId = cid;
-		var container = $(cid).context.documentElement;
 		var polar_container;
 
 		/* screen geometry */
@@ -1374,9 +1392,9 @@ GLOBE.TYPES.Globe = function (cid) {
 		var PI_HALF = Math.PI / 2;
 		var RADIUS = 200;
 		var ATMOSPHERE_SIZE_FACTOR = 1.11;
-		var ZOOM_SPEED = 50;
+		var ZOOM_SPEED = 0.25 * RADIUS;
 		var ZOOM_CLICK_STEP = ZOOM_SPEED*2;
-		var PILLAR_FULLSIZE = 100;
+		var PILLAR_FULLSIZE = 0.5 * RADIUS;
 		var NO_COUNTRY = GLOBE.GEO.NO_COUNTRY;
 		var COLOR_BLACK = new THREE.Color(0x000000);
 		var COLOR_WHITE = new THREE.Color(0xffffff);
@@ -1404,6 +1422,7 @@ GLOBE.TYPES.Globe = function (cid) {
 		if (!obj.prefix) { obj.prefix = ""; }
 		var atlas_url = obj.prefix + 'gen/atlas.png';
 		var cmap_url = obj.prefix + 'gen/cmap.png';
+		var texloader = new THREE.TextureLoader();
 
 		/* Camera moving : */
 		var vector = THREE.Vector3();
@@ -1457,7 +1476,6 @@ GLOBE.TYPES.Globe = function (cid) {
 
 		/* Geometries 3D Base objects*/
 		var shaders = {};
-		var projector;
 		var scene;
 		var atmosphereScene;
 		var particleScene;
@@ -1473,8 +1491,6 @@ GLOBE.TYPES.Globe = function (cid) {
 		var enabled = false; /* is globe enabled ? */
 		var overGlobe = false; /* is mouse over globe */
 		var overRenderer = true; /* is mouse over renderer */
-
-		
 
 		shaders = {
 			'earth' : {
@@ -1576,8 +1592,8 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform sampler2D countrydata;',
 					'uniform sampler2D geodata;',
 					'uniform float cintensity;',
-					'uniform float calpha;',
-					'uniform vec4 selection;',
+					'uniform float calpha;', //TODO: not used anymore ?
+					'uniform vec4 selection;', //Color to use for a hovered country
 					'uniform float bintensity;',
 					'uniform vec3 lightvector;',
 					'uniform vec3 lightcolor;',
@@ -1586,6 +1602,8 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform vec3 acolor;',
 					'varying vec3 vNormal;',
 					'varying vec2 vUv;',
+
+					//Smoothly compute countries hovered color (borders smoothed)
 					'float avgcol(float tv) {',
 						'float ret = 0.0;',
 						'int count = 0;',
@@ -1598,29 +1616,39 @@ GLOBE.TYPES.Globe = function (cid) {
 						'ret*= 1.0/float(count);',
 						'return ret;',
 					'}',
+
 					'void main() {',
 							  'vec2 pos = vec2(mousex, (1.0-mousey));',
 							  'vec2 vUv1 = vec2(vUv.x,(vUv.y/2.0) + 0.5);',
 							  'vec2 vUv2 = vec2(vUv.x,(vUv.y/2.0));',
 							  'vec4 ccol = vec4(0.0,0.0,0.0,0.0);',
+
+							  //Check if country is hovered by mouse
 							  'if (texture2D(countrymap,pos).x > 0.0 && texture2D(countrymap,pos).x == texture2D(countrymap,vUv).x) {',
+
+								//Apply smoothed color based on actual texture and highlight color (selection)
 								'ccol = vec4(selection.xyz,calpha*selection.w);',
 								'ccol*=avgcol(texture2D(countrymap,pos).x);',
+
 							  '} else {',
+
+					            //Check if country has a datacolor.
 								'float par = 256.0;',
 								'int cidx = int(texture2D(countrymap,vUv).x * par);',
 								'float cc = float(cidx) / par;',
 								'if (cc > 0.0) {',
+
+									//Set the country Color from the countrydata texture.
 									'vec2 datapos = vec2(cc,0.0);',
 									'vec4 col = texture2D(countrydata,datapos);',
-									'ccol = vec4(col.xyz,calpha*col.w);',
+									'ccol = vec4(col.xyz,calpha*col.w*cintensity);',
 								'}',
 							  '}',
 
+							  //Compute color for cities.
 							  'vec3 city_col = lightcolor;',
 							  'float city_fac = 0.0;',
 							  'float day_factor = 1.0;',
-
 							  'if (lightcolor.x >= 0.0 && lightcolor.y >= 0.0 && lightcolor.z >= 0.0) {',
 								  'vec3 lightv= normalize(lightvector);',
 								  'day_factor = max(0.0,dot(vNormal, lightv));',
@@ -1629,10 +1657,9 @@ GLOBE.TYPES.Globe = function (cid) {
 								  '}',
 							  '}',
 
+							  /* Colorization (light and dark)*/
 							  'float intensity = 1.15 - dot( vNormal, vec3( 0.0, 0.0, 1.0 ) );',
 							  'vec4 diffuse = texture2D( texture, vUv1 );',
-
-							  /* Colorization */
 							  'float col_int = color_intensity * (day_factor);',
 							  'if (col_int < 1.0) {;',
 								'float ci = (1.0 - col_int);',
@@ -1643,23 +1670,29 @@ GLOBE.TYPES.Globe = function (cid) {
 								'diffuse = vec4(diffuse.x - xa,diffuse.y - ya, diffuse.z - za,diffuse.a);',
 							  '}',
 
-							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);', /* background color */
-							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);', /* background color */
+							  //Background color
+							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - diffuse.a),diffuse.a);',
+							  'diffuse = vec4(mix(diffuse.xyz,bgcolor,1.0 - day_factor),diffuse.a);',
 
+							  //Compute geodata color
 							  'vec4 geo = texture2D(geodata,vUv);',
 							  'diffuse = vec4(mix(diffuse.xyz,geo.xyz,geo.a),diffuse.a);', /* geocolor */
-							  //'if (ccol.r > 0.2 || ccol.g > 0.2 || ccol.b > 0.2) {',
+
 							  'if (ccol.w > 0.0) {',
-							  	//'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w * cintensity * 2.0),diffuse.a);', /* Country Color */
 							  	'diffuse = vec4(mix(diffuse.xyz,ccol.xyz,ccol.w),diffuse.a);', /* Country Color */
 							  '}',
-
+								
+					          //Border Color
 							  'diffuse = vec4(mix(diffuse.xyz,bcolor,(texture2D(texture,vUv2).y * bintensity)),1.0);', /* Border Color */
 
+							  // City Color
 							  'diffuse = vec4(mix(diffuse.xyz,city_col,city_fac),diffuse.a);', /* City Color */
 
+							  //Atmosphere
 							  'vec3 atmosphere = mix(diffuse.xyz,acolor,pow( intensity, 3.0 ));', /* atmosphere */
 							  'diffuse = vec4(mix(diffuse.xyz,atmosphere,day_factor),diffuse.a);', /* atmosphere */
+
+							  //Get it out
 							  'gl_FragColor = (diffuse.a * brightness) * diffuse;',
 					'}'
 				].join('\n')
@@ -1725,7 +1758,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					},
 					texture: { 
 						type: 't', 
-						value: THREE.ImageUtils.loadTexture( obj.prefix + 'img/particle.png' ) 
+						value: texloader.load( obj.prefix + 'img/particle.png' ) 
 					},
 					randomu: {
 						type: 'f',
@@ -1735,43 +1768,43 @@ GLOBE.TYPES.Globe = function (cid) {
 				attributes: {
 					longitude: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					latitude: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					longitude_d: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					latitude_d: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					created: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					lifetime: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					color: {
 						type: 'v4',
-						value: []
+						value: new Float32Array(particle_count * 4)
 					},
 					size: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					}, 
 					heightfactor: {
 						type: 'f',
-						value: []
+						value: new Float32Array(particle_count)
 					},
 					random: { 	
 						type: "f", 
-						value: []
+						value: new Float32Array(particle_count)
 					}
 
 				},
@@ -1806,10 +1839,10 @@ GLOBE.TYPES.Globe = function (cid) {
 
 					'varying float age;',
 					//'varying vec2 vUv;',
-					'vec4 convert_from_polar( vec3 coord )',
+					'vec4 convert_from_polar(vec3 coord)',
 					'{',
-						'float tmp = cos( coord.y );',
-						'vec4 res = vec4(tmp * sin( coord.x ), sin( coord.y ), tmp * cos( coord.x ), 0.0) * coord.z;',
+						'float tmp = cos(coord.y);',
+						'vec4 res = vec4(tmp * sin(coord.x), sin(coord.y), tmp * cos(coord.x), 0.0) * coord.z;',
 						'res.w = 1.0;',
 						'return res;',
 					'}',
@@ -1817,20 +1850,18 @@ GLOBE.TYPES.Globe = function (cid) {
 					'void main() {',
 						'age = ((max(now-created,0.0) / (lifetime + random * lifetime * 0.3)));',
 						'col = color;',
-						//'float age = ((max(now-created,0.0) /lifetime));',
 						'if ( age <= 1.0 ) {',
 							'vec2 way = vec2( (longitude*(1.0-age) + longitude_d*age), (latitude*(1.0-age) + latitude_d*age));',
 							'float dage = age * 2.0;',
 							'if (dage > 1.0) { dage = 2.0 - dage; }',
-							//'vec4 coord = convert_from_polar(vec3(longitude,latitude,age * hitend + hitstart));',
-							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart ));',
+							'vec4 coord = convert_from_polar(vec3(way,heightfactor * sin(age*3.142) * (hitend)  + hitstart));',
+
 							'gl_PointSize =(0.5 + dage *0.5) * size * (1.0 + (random - 0.5)* 3.0  * (randomu)) ;' ,
 							'gl_Position = projectionMatrix * modelViewMatrix * coord;',
 						'} else {',
 							'gl_PointSize = 0.0;',
 							'gl_Position = projectionMatrix * modelViewMatrix * vec4(0.0,0.0,0.0,1.0);',
 						'}',
-						//'vUv = uv;',
 					'}'
 
 				].join('\n'),
@@ -1841,6 +1872,7 @@ GLOBE.TYPES.Globe = function (cid) {
 					'uniform float v;',
 					//'varying vec2 vUv;',
 					'void main() {',
+
 						'float dage = age * 2.0;',
 						'if (dage > 1.0) { dage = 2.0 - dage; }',
 						//'float d = texture2D( texture, gl_PointCoord ).a;',
@@ -1848,22 +1880,23 @@ GLOBE.TYPES.Globe = function (cid) {
 
 						'float d = texture2D( texture, gl_PointCoord ).w ;',
 						//'float d = 1.0;',
-						/*
-						"vec2 vUv = gl_PointCoord;",
-						"float d = 0.0;",
+					//
+						//"vec2 vUv = gl_PointCoord;",
+						//"float d = 0.0;",
 
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
-						"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
-						*/
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 4.0 * v ) ).r * 0.051;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 3.0 * v ) ).r * 0.0918;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 2.0 * v ) ).r * 0.12245;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y - 1.0 * v ) ).r * 0.1531;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y ) ).r * 0.1633;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 1.0 * v ) ).r * 0.1531;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 2.0 * v ) ).r * 0.12245;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 3.0 * v ) ).r * 0.0918;",
+						//"d += texture2D( texture, vec2( vUv.x, vUv.y + 4.0 * v ) ).r * 0.051;",
 						'gl_FragColor = vec4(dage * d * d * col.xyz,d);',
-						//'gl_FragColor = vec4(dage * d * d * col.xyz,d * col.w);',
+						//'gl_FragColor = vec4(dage * d * d * col.xyz,0.5);', //DEBUG
+						//'gl_FragColor = vec4(dage * d * d * vec3(1.0,1.0,1.0),0.5);', //DEBUG
+						//'gl_FragColor = vec4(1.0,1.0,1.0,0.5);', //DEBUG
 					
 					'}'
 				].join('\n')
