@@ -75,7 +75,11 @@ check:
 
 .PHONY: edit
 edit: 
-	$(EDITOR) *.js Makefile example/twitter/*.go example/twitter/htdocs/index.html bin/*.go
+	$(EDITOR) *.js Makefile
+
+.PHONY: edittwitter
+edittwitter:
+	$(EDITOR) example/twitter/*.go example/twitter/htdocs/index.html example/twitter/htdocs/js/*.js 
 
 .PHONY: clean
 clean:

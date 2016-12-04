@@ -1,4 +1,4 @@
-EDITR: gvim
+EDITOR=gvim
 
 all: twitter
 
