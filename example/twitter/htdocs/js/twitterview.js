@@ -256,6 +256,7 @@ $(document).ready(function() {
     globe = GLOBE.TYPES.Globe('#container');
     globe.start();
     GLOBE.WIDGETS.renderShareBar('#sharebar');
+    GLOBE.WIDGETS.renderFlagWidget('#flagwidget');
     picbuffer = calcPicBuffer();
 
     updateButtons();

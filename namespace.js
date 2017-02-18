@@ -114,8 +114,8 @@ var GLOBE = GLOBE || {
                 if (o.item !== undefined) {
                     item = $(o.item);
                 } else {
-
-                    item.css('background-image', "url('" + o.icon + "')");
+					var prefix = $(sbid).attr('prefix') || "";
+                    item.css('background-image', "url('" + prefix + o.icon + "')");
                     item.css('background-repeat', 'no-repeat');
                     item.css('background-position', 'left center');
                     item.attr('href', o.url);
@@ -128,19 +128,25 @@ var GLOBE = GLOBE || {
                 item.appendTo(sbid);
             }
         },
-        'createFlagBox': function(id) {
-            var ret = $('<div>');
-            if (id === undefined) {
-                $(document).bind("country:hover", function(e, iso) {
-                    ret.removeClass();
-                    ret.addClass("flag_" + iso);
-                });
-                ret.addClass("flag_undefined");
-            } else if (Number(id) == id) {
-                ret.addClass("CID_" + id);
-            } else {
-                ret.addClass("flag_" + id.toUpperCase());
-            }
+        'renderFlagWidget': function(id) {
+            var ret = $(id);
+			var label = $('<p>');
+			label.appendTo(id);
+
+			$(document).bind("country:hover", function(e, iso) {
+				if (iso === undefined) {
+					ret.attr("class","flag_undefined");
+					ret.hide();
+				} else if (Number(iso) == iso) {
+					ret.attr("class","CID_" + iso);
+					ret.show();
+				} else {
+					ret.attr("class","flag_" + iso.toUpperCase());
+					label.html(GLOBE.GEO.lookup_countryname(iso));
+					ret.show();
+				}
+			});
+			ret.hide();
             return ret;
         }
     }

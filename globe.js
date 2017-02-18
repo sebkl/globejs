@@ -1071,7 +1071,6 @@ GLOBE.TYPES.Globe = function(cid) {
         $(containerId).bind('mousedown', undefined, onMouseDown);
         $(containerId).bind('mousewheel', undefined, onMouseWheel);
         $(containerId).bind('mousemove', undefined, onMouseBrowse);
-        //document.addEventListener('keydown', onDocumentKeyDown, false);                                                                                           
         $(containerId).bind('mouseover', undefined, onMouseInContainer);
         $(containerId).bind('mouseout', undefined, onMouseOutContainer);
 
@@ -1080,6 +1079,9 @@ GLOBE.TYPES.Globe = function(cid) {
 
         $(document).bind('navigation:zoom:in', eventNavigationZoomIn);
         $(document).bind('navigation:zoom:out', eventNavigationZoomOut);
+
+		/* Listen on arrow-keys */
+		$(document).bind('keydown', onKeyDown);
     }
 
     /** Remove all relevant Event listeners */
@@ -1100,6 +1102,8 @@ GLOBE.TYPES.Globe = function(cid) {
 
         $(document).unbind('navigation:zoom:in', eventNavigationZoomIn);
         $(document).unbind('navigation:zoom:out', eventNavigationZoomOut);
+
+		$(document).unbind('keydown', onKeyDown);
     }
 
     function init() {
@@ -1281,6 +1285,28 @@ GLOBE.TYPES.Globe = function(cid) {
         var intersects = ray.intersectObjects([sphere]);
         return intersects;
     }
+
+	function onKeyDown(event) {
+		var delta = 0.7 * distance / 1000;
+		switch (event.which) {
+			case 39: /* right */
+				target.x = target.x + delta;
+				break;
+			case 37: /* left */
+				target.x = target.x - delta;
+				break;
+			case 38: /* up */
+				target.y = target.y - delta;
+				break;
+			case 40: /* down */
+				target.y = target.y + delta;
+				break;
+			default:
+				console.log("KeyPResssed: " + event.which);
+		}
+        target.y = target.y > PI_HALF ? PI_HALF : target.y;
+        target.y = target.y < -PI_HALF ? -PI_HALF : target.y;
+	}
 
     function onMouseBrowse(event) {
         if (overRenderer) {
